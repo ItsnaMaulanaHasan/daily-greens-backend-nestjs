@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: backend_postgres
+    restart: unless-stopped
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: daily_greens_admin
+      POSTGRES_PASSWORD: always_greens
+      POSTGRES_DB: daily_greens_db_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
