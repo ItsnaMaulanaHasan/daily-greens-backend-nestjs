@@ -22,12 +22,127 @@ datasource db {
   provider = "postgresql"
 }
 
-model user {
-  id  String @id @default(uuid())
-  email String @unique
-  name String?
-  createdAt DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
 
+enum UserGender {
+  MALE
+  FEMALE
+}
+
+model User {
+  id              String     @id @default(uuid())
+  email           String     @unique @db.VarChar(255)
+  passwordHash    String     @map("password_hash") @db.Text
+  roleId          String     @map("role_id")
+  status          UserStatus @default(ACTIVE)
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz()
+  lastLoginAt     DateTime?  @map("last_login_at") @db.Timestamptz()
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedBy String?   @map("deleted_by") @db.Uuid
+
+  // relations
+  profile       Profile?
+  role          Role     @relation(fields: [roleId], references: [id])
+  createdByUser User?    @relation("UserCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser User?    @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
+  deletedByUser User?    @relation("UserDeletedBy", fields: [deletedBy], references: [id])
+
+  // relations audit colom
+  // user
+  usersCreated User[] @relation("UserCreatedBy")
+  usersUpdated User[] @relation("UserUpdatedBy")
+  usersDeleted User[] @relation("UserDeletedBy")
+
+  // Role
+  rolesCreated Role[] @relation("RoleCreatedBy")
+  rolesUpdated Role[] @relation("RoleUpdatedBy")
+  rolesDeleted Role[] @relation("RoleDeletedBy")
+
+  // permission
+  permissionsCreated Permission[] @relation("PermissionCreatedBy")
+  permissionsUpdated Permission[] @relation("PermissionUpdatedBy")
+  permissionsDeleted Permission[] @relation("PermissionDeletedBy")
+
+  @@index([roleId])
   @@map("users")
+}
+
+model Profile {
+  id          String      @id @default(uuid())
+  userId      String      @unique @map("user_id")
+  fullName    String      @map("full_name") @db.VarChar(255)
+  avatarUrl   String?     @map("avatar_url") @db.Text
+  address     String?     @db.Text
+  phoneNumber String?     @map("phone_number") @db.VarChar(20)
+  birthDate   DateTime?   @map("birth_date") @db.Date
+  gender      UserGender?
+
+  // relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  name        String  @unique @db.VarChar(50)
+  description String? @db.VarChar(255)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedBy String?   @map("deleted_by") @db.Uuid
+
+  // relations
+  users           User[]
+  rolePermissions RolePermission[]
+  createdByUser   User?            @relation("RoleCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser   User?            @relation("RoleUpdatedBy", fields: [updatedBy], references: [id])
+  deletedByUser   User?            @relation("RoleDeletedBy", fields: [deletedBy], references: [id])
+
+  @@map("roles")
+}
+
+model Permission {
+  id   String @id @default(uuid())
+  name String @unique @db.VarChar(150)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+  createdBy String?   @map("created_by") @db.Uuid
+  updatedBy String?   @map("updated_by") @db.Uuid
+  deletedBy String?   @map("deleted_by") @db.Uuid
+
+  // relations
+  rolePermissions RolePermission[]
+  createdByUser   User?            @relation("PermissionCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser   User?            @relation("PermissionUpdatedBy", fields: [updatedBy], references: [id])
+  deletedByUser   User?            @relation("PermissionDeletedBy", fields: [deletedBy], references: [id])
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  // relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([permissionId])
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
 }
