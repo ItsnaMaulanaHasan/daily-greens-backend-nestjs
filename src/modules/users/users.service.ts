@@ -7,8 +7,24 @@ export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
   create(dto: CreateUserDto) {
+    const { fullName, roleId, ...userData } = dto;
+
     return this.prisma.user.create({
-      data: dto,
+      data: {
+        ...userData,
+        role: {
+          connect: {
+            id: roleId,
+          },
+        },
+        profile: fullName
+          ? {
+              create: {
+                fullName,
+              },
+            }
+          : undefined,
+      },
     });
   }
 
