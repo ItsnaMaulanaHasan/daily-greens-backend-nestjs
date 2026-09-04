@@ -14,7 +14,7 @@ import { PasswordService } from './password.service';
       useFactory: (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: (configService.get<string>('JWT_EXPRIES_IN') ??
+          expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ??
             '1d') as SignOptions['expiresIn'],
         },
       }),
@@ -22,6 +22,6 @@ import { PasswordService } from './password.service';
   ],
   controllers: [AuthController],
   providers: [AuthService, PasswordService, JwtAuthGuard],
-  exports: [PasswordService, JwtAuthGuard],
+  exports: [JwtModule, PasswordService, JwtAuthGuard],
 })
 export class AuthModule {}
