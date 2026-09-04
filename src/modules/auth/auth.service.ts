@@ -153,6 +153,8 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User is no longer active');
     }
+
+    return user;
   }
 
   private async createAuthResponse(user: {
