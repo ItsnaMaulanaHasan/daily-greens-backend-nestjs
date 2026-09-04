@@ -1,6 +1,6 @@
-import 'dotenv/config';
-import { randomBytes, scryptSync } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
+import * as argon2 from 'argon2';
+import 'dotenv/config';
 import { PrismaClient, UserStatus } from '../generated/prisma/client.js';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -59,11 +59,13 @@ const users = [
   },
 ] as const;
 
-function hashPassword(password: string) {
-  const salt = randomBytes(16).toString('hex');
-  const derivedKey = scryptSync(password, salt, 64).toString('hex');
-
-  return `scrypt$${salt}$${derivedKey}`;
+function hashPassword(password: string): Promise<string> {
+  return argon2.hash(password, {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
 }
 
 async function seedRoles() {
@@ -137,6 +139,7 @@ async function seedRolePermissions() {
 
 async function seedUsers() {
   for (const user of users) {
+    const passwordHash = await hashPassword(user.password);
     const role = await prisma.role.findUniqueOrThrow({
       where: {
         name: user.roleName,
@@ -148,12 +151,13 @@ async function seedUsers() {
         email: user.email,
       },
       update: {
+        passwordHash,
         roleId: role.id,
         status: UserStatus.ACTIVE,
       },
       create: {
         email: user.email,
-        passwordHash: hashPassword(user.password),
+        passwordHash,
         roleId: role.id,
         status: UserStatus.ACTIVE,
         emailVerifiedAt: new Date(),
