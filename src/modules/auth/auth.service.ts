@@ -140,6 +140,21 @@ export class AuthService {
     return this.createAuthResponse(user);
   }
 
+  async getProfile(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        status: UserStatus.ACTIVE,
+        deletedAt: null,
+      },
+      select: publicUserSelect,
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User is no longer active');
+    }
+  }
+
   private async createAuthResponse(user: {
     id: string;
     email: string;
