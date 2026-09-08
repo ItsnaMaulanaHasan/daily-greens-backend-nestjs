@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
-import { UserStatus } from 'generated/prisma/enums';
-import { PrismaService } from 'src/common/prisma/prisma.service';
+import { UserStatus } from '../../../generated/prisma/client';
+import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   AuthenticatedUser,
   JwtPayload,
