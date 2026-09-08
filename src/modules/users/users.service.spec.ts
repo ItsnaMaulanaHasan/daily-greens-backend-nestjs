@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { PasswordService } from '../auth/password.service';
 import { UsersService } from './users.service';
 
 describe('UsersService', () => {
@@ -15,8 +16,15 @@ describe('UsersService', () => {
             user: {
               create: jest.fn(),
               findMany: jest.fn(),
-              findUnique: jest.fn(),
+              findFirst: jest.fn(),
             },
+          },
+        },
+        {
+          provide: PasswordService,
+          useValue: {
+            hash: jest.fn(),
+            verify: jest.fn(),
           },
         },
       ],
@@ -25,7 +33,7 @@ describe('UsersService', () => {
     service = module.get<UsersService>(UsersService);
   });
 
-  it('should be defined', () => {
+  it('shoul be defined', () => {
     expect(service).toBeDefined();
   });
 });
