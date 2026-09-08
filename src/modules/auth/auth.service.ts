@@ -51,7 +51,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Emails is already resgistered');
+      throw new ConflictException('Email is already resgistered');
     }
 
     const customerRole = await this.prisma.role.findUnique({

@@ -3,7 +3,7 @@ import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
 
 export class LoginDto {
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim().toLocaleLowerCase() : value,
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsEmail()
   @MaxLength(255)

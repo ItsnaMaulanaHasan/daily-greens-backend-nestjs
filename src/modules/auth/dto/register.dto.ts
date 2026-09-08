@@ -9,7 +9,7 @@ import {
 
 export class RegisterDto {
   @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim().toLocaleLowerCase() : value,
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsEmail()
   @MaxLength(255)
