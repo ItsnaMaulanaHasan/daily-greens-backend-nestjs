@@ -55,7 +55,7 @@ export class UpdateProfileDto {
     message:
       'phoneNumber must contain 8 to 15 digits and may start with a plus sign',
   })
-  phoneNumber?: number;
+  phoneNumber?: string;
 
   @ApiPropertyOptional({
     description: 'Tanggal lahir dalam format YYYY-MM-DD',
