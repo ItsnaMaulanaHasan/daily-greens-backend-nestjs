@@ -51,7 +51,7 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   @MaxLength(20)
-  @Matches(/^\+?[0-9]{8,15}$/, {
+  @Matches(/^\+?\d{8,15}$/, {
     message:
       'phoneNumber must contain 8 to 15 digits and may start with a plus sign',
   })
