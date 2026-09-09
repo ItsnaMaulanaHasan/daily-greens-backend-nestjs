@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsEmail,
@@ -8,6 +9,12 @@ import {
 } from 'class-validator';
 
 export class RegisterDto {
+  @ApiProperty({
+    description: 'Email yang digunakan untuk masuk',
+    example: 'user@example.com',
+    format: 'email',
+    maxLength: 255,
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
@@ -15,6 +22,15 @@ export class RegisterDto {
   @MaxLength(255)
   email!: string;
 
+  @ApiProperty({
+    description:
+      'Password minimal 8 karakter dan harus mengandung huruf besar, huruf kecil, dan angka',
+    example: 'Password123',
+    format: 'password',
+    minLength: 8,
+    maxLength: 128,
+    writeOnly: true,
+  })
   @IsString()
   @MinLength(8)
   @MaxLength(128)
@@ -24,6 +40,12 @@ export class RegisterDto {
   })
   password!: string;
 
+  @ApiProperty({
+    description: 'Nama lengkap user',
+    example: 'Daily Greens User',
+    minLength: 2,
+    maxLength: 255,
+  })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
