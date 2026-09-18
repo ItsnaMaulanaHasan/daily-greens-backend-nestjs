@@ -24,6 +24,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { ProductService } from './product.service';
 
@@ -31,6 +32,7 @@ import { ProductService } from './product.service';
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
+  // product category
   @ApiOperation({
     summary: 'Mengambil daftar kategori produk yang aktif',
   })
@@ -130,5 +132,34 @@ export class ProductController {
   @Roles('admin')
   removeCategory(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.productService.removeCategory(id);
+  }
+
+  // product
+  @ApiOperation({
+    summary: 'Membuat produk baru',
+    description:
+      'Produk  dibuat tanpa varian dan menggunakan status DRAFT secara deafult',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiCreatedResponse({
+    description: 'Produk berhasil dibuat',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Kategori produk tidak ditemukan atau tidak aktif',
+  })
+  @ApiConflictResponse({
+    description: 'Slug produk sudah digunakan',
+  })
+  @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  createProduct(@Body() dto: CreateProductDto) {
+    return this.productService.createProduct(dto);
   }
 }
