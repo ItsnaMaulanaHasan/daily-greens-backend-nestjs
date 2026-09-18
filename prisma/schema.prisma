@@ -48,6 +48,23 @@ enum StockMovementType {
   CANCELLATION
 }
 
+enum PromotionApplicationType {
+  AUTOMATIC
+  COUPON
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+enum PromotionScope {
+  ALL_PRODUCTS
+  CATEGORY
+  PRODUCT
+  VARIANT
+}
+
 model User {
   id              String     @id @default(uuid()) @db.Uuid
   email           String     @unique @db.VarChar(255)
@@ -89,6 +106,9 @@ model User {
 
   // stock movement
   stockMovementCreated StockMovement[] @relation("StockMovementCreatedBy")
+
+  // promotion
+  promotionsCreated Promotion[] @relation("PromotionCreatedBy")
 
   @@index([roleId])
   @@map("users")
@@ -340,4 +360,43 @@ model StockMovement {
   @@index([referenceId])
   @@index([createdBy])
   @@map("stock_movements")
+}
+
+model Promotion {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+
+  applicationType PromotionApplicationType @default(AUTOMATIC) @map("application_type")
+  code            String?                  @unique @db.VarChar(100)
+
+  discountType    DiscountType @map("discount_type")
+  discountValue   Decimal      @map("discount_value") @db.Decimal(12, 2)
+  maximumDiscount Decimal?     @map("maximum_discount") @db.Decimal(12, 2)
+
+  minimumOrderAmount Decimal? @map("minimum_order_amount") @db.Decimal(12, 2)
+  minimumQuantity    Int?     @map("minimum_quantity")
+
+  scope             PromotionScope
+  startsAt          DateTime       @map("starts_at") @db.Timestamptz()
+  endsAt            DateTime       @map("ends_at") @db.Timestamptz()
+  usageLimit        Int?           @map("usage_limit")
+  usageLimitPerUser Int?           @map("usage_limit_per_user")
+
+  priority    Int     @default(0)
+  isStackable Boolean @default(false) @map("is_stackable")
+  isActive    Boolean @default(true) @map("is_active")
+
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
+
+  // relations
+  createdByUser User? @relation("PromotionCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([isActive, startsAt, endsAt])
+  @@index([scope])
+  @@index([deletedAt])
+  @@map("promotions")
 }
