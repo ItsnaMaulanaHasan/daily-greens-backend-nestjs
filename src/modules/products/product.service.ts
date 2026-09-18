@@ -30,4 +30,22 @@ export class ProductService {
       throw error;
     }
   }
+
+  findAllActiveCategories() {
+    return this.prisma.productCategory.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        imageUrl: true,
+        position: true,
+      },
+      orderBy: [{ position: 'desc' }, { name: 'asc' }],
+    });
+  }
 }
