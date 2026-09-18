@@ -80,4 +80,43 @@ export class ProductService {
       throw error;
     }
   }
+
+  async removeCategory(id: string) {
+    const category = await this.prisma.productCategory.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Product category not found');
+    }
+
+    const productCount = await this.prisma.product.count({
+      where: {
+        categoryId: id,
+        deletedAt: null,
+      },
+    });
+
+    if (productCount > 0) {
+      throw new ConflictException(
+        'Product category cannot be deleted while it still has products',
+      );
+    }
+
+    return this.prisma.productCategory.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+      },
+    });
+  }
 }

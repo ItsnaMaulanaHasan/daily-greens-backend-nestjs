@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -96,5 +97,38 @@ export class ProductController {
     @Body() dto: UpdateProductCategoryDto,
   ) {
     return this.productService.updateCategory(id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Menghapus kategori produk',
+    description:
+      'Kategori dihapus secara soft delete dan tidak boleh masih memiliki produk',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'id',
+    description: 'UUID kategori produk',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Kategori produk berhasil dihapus',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Kategori produk tidak ditemukan atau sudah dihapus',
+  })
+  @ApiConflictResponse({
+    description: 'Kategori masih memiliki produk',
+  })
+  @Delete('categories/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  removeCategory(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.productService.removeCategory(id);
   }
 }
