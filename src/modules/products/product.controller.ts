@@ -1,9 +1,10 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -16,6 +17,17 @@ import { ProductService } from './product.service';
 @Controller('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
+
+  @ApiOperation({
+    summary: 'Mengambil daftar kategori produk yang aktif',
+  })
+  @ApiOkResponse({
+    description: 'Daftar kategori produk aktif berhasil diambil',
+  })
+  @Get('categories')
+  findAllActiveCategories() {
+    return this.productService.findAllActiveCategories();
+  }
 
   @ApiOperation({
     summary: 'Membuat kategori produk',
