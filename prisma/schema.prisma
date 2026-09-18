@@ -105,7 +105,7 @@ model User {
   permissionsDeleted Permission[] @relation("PermissionDeletedBy")
 
   // stock movement
-  stockMovementCreated StockMovement[] @relation("StockMovementCreatedBy")
+  stockMovementsCreated StockMovement[] @relation("StockMovementCreatedBy")
 
   // promotion
   promotionsCreated Promotion[] @relation("PromotionCreatedBy")
@@ -194,9 +194,9 @@ model ProductCategory {
   position    Int     @default(0)
   isActive    Boolean @default(true) @map("is_active")
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  deletedAt DateTime @map("deleted_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
   // relations
   products         Product[]
@@ -247,9 +247,9 @@ model ProductImage {
   position  Int     @default(0)
   isPrimary Boolean @default(false) @map("is_primary")
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  deletedAt DateTime @map("deleted_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
   // relations
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -328,7 +328,7 @@ model ProductVariant {
 
 model VariantOptionValue {
   variantId     String @map("variant_id") @db.Uuid
-  optionValueId String @map("variant_value_id") @db.Uuid
+  optionValueId String @map("option_value_id") @db.Uuid
 
   // relations
   variant     ProductVariant     @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -344,11 +344,11 @@ model StockMovement {
   variantId String            @map("variant_id") @db.Uuid
   type      StockMovementType
 
-  quantityChange Int @map("reference_type")
+  quantityChange Int @map("quantity_change")
   stockBefore    Int @map("stock_before")
   stockAfter     Int @map("stock_after")
 
-  referenceType String? @map("references_type") @db.VarChar(50)
+  referenceType String? @map("reference_type") @db.VarChar(50)
   referenceId   String? @map("reference_id") @db.Uuid
   note          String? @db.Text
 
@@ -390,7 +390,7 @@ model Promotion {
   isStackable Boolean @default(false) @map("is_stackable")
   isActive    Boolean @default(true) @map("is_active")
 
-  createdBy String?   @map("created_by")
+  createdBy String?   @map("created_by") @db.Uuid
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
@@ -430,7 +430,7 @@ model PromotionProduct {
 
   @@id([promotionId, productId])
   @@index([productId])
-  @@map("promotiion_products")
+  @@map("promotion_products")
 }
 
 model PromotionVariant {
