@@ -199,7 +199,8 @@ model ProductCategory {
   deletedAt DateTime @map("deleted_at") @db.Timestamptz()
 
   // relations
-  products Product[]
+  products         Product[]
+  promotionTargets PromotionCategory[]
 
   @@index([isActive, position])
   @@map("product_categories")
@@ -225,10 +226,11 @@ model Product {
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
   // relations
-  category ProductCategory  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  images   ProductImage[]
-  options  ProductOption[]
-  variants ProductVariant[]
+  category         ProductCategory    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images           ProductImage[]
+  options          ProductOption[]
+  variants         ProductVariant[]
+  promotionTargets PromotionProduct[]
 
   @@index([categoryId, status])
   @@index([status, position])
@@ -313,9 +315,10 @@ model ProductVariant {
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
   // relations
-  product        Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
-  optionValues   VariantOptionValue[]
-  stockMovements StockMovement[]
+  product          Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  optionValues     VariantOptionValue[]
+  stockMovements   StockMovement[]
+  promotionTargets PromotionVariant[]
 
   @@index([productId, isActive])
   @@index([productId, isDefault])
@@ -393,10 +396,52 @@ model Promotion {
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
   // relations
-  createdByUser User? @relation("PromotionCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  createdByUser   User?               @relation("PromotionCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  categoryTargets PromotionCategory[]
+  productTargets  PromotionProduct[]
+  variantTargets  PromotionVariant[]
 
   @@index([isActive, startsAt, endsAt])
   @@index([scope])
   @@index([deletedAt])
   @@map("promotions")
+}
+
+model PromotionCategory {
+  promotionId String @map("promotion_id") @db.Uuid
+  categoryId  String @map("category_id") @db.Uuid
+
+  // relations
+  promotion Promotion       @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  category  ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, categoryId])
+  @@index([categoryId])
+  @@map("promotion_categories")
+}
+
+model PromotionProduct {
+  promotionId String @map("promotion_id") @db.Uuid
+  productId   String @map("product_id") @db.Uuid
+
+  // relations
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, productId])
+  @@index([productId])
+  @@map("promotiion_products")
+}
+
+model PromotionVariant {
+  promotionId String @map("promotion_id") @db.Uuid
+  variantId   String @map("variant_id") @db.Uuid
+
+  // relations
+  promotion Promotion      @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, variantId])
+  @@index([variantId])
+  @@map("promotion_variants")
 }
