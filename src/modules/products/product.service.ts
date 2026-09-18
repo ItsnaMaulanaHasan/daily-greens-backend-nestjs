@@ -6,12 +6,14 @@ import {
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
+import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 
 @Injectable()
 export class ProductService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // product category
   async createCategory(dto: CreateProductCategoryDto) {
     try {
       return await this.prisma.productCategory.create({
@@ -118,5 +120,58 @@ export class ProductService {
         deletedAt: new Date(),
       },
     });
+  }
+
+  // product
+  async createProduct(dto: CreateProductDto) {
+    const category = await this.prisma.productCategory.findFirst({
+      where: {
+        id: dto.categoryId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!category) {
+      throw new NotFoundException('Product category not found or inactive');
+    }
+
+    try {
+      return await this.prisma.product.create({
+        data: {
+          categoryId: dto.categoryId,
+          name: dto.name,
+          slug: dto.slug,
+          description: dto.description,
+          status: dto.status,
+          allowCustomerNote: dto.allowCustomerNote,
+          notePlaceholder: dto.notePlaceholder,
+          preparationTimeMinutes: dto.preparationTimeMinutes,
+          isFeatured: dto.isFeatured,
+          position: dto.position,
+        },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Product slug is already in use');
+      }
+
+      throw error;
+    }
   }
 }
