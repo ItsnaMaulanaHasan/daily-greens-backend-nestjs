@@ -85,7 +85,7 @@ export class CreateProductVariantDto {
   })
   @IsOptional()
   @IsBoolean()
-  IsDefault?: boolean;
+  isDefault?: boolean;
 
   @ApiPropertyOptional({
     example: true,
@@ -110,5 +110,5 @@ export class CreateProductVariantDto {
   @IsUUID('4', {
     each: true,
   })
-  optionValueIds?: string;
+  optionValueIds?: string[];
 }
