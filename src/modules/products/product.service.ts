@@ -1,12 +1,14 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '../../../generated/prisma/client';
+import { Prisma, StockMovementType } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
+import { CreateProductVariantDto } from './dto/create-product-variant-dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 
@@ -223,6 +225,188 @@ export class ProductService {
         throw new ConflictException(
           'Option name or option value is already in use for this product',
         );
+      }
+
+      throw error;
+    }
+  }
+
+  // product variant
+  async createProductVariant(
+    productId: string,
+    createdBy: string,
+    dto: CreateProductVariantDto,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id: productId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        options: {
+          select: {
+            id: true,
+            displayName: true,
+            isRequired: true,
+            values: {
+              where: {
+                isActive: true,
+              },
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
+        variants: {
+          where: {
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            optionValues: {
+              select: {
+                optionValueId: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const optionValueIds = dto.optionValueIds ?? [];
+
+    const availableOptionValues = product.options.flatMap((option) =>
+      option.values.map((value) => ({
+        id: value.id,
+        optionId: option.id,
+      })),
+    );
+
+    const selectedOptionValues = optionValueIds.map((optionValueId) =>
+      availableOptionValues.find((value) => value.id === optionValueId),
+    );
+
+    if (selectedOptionValues.includes(undefined)) {
+      throw new BadRequestException(
+        'One or more option values do not belong to this product or are inactive',
+      );
+    }
+
+    const selectedOptionIds = selectedOptionValues.map(
+      (value) => value?.optionId,
+    );
+
+    if (new Set(selectedOptionIds).size !== selectedOptionIds.length) {
+      throw new BadRequestException(
+        'Only one value may be selected from each product option',
+      );
+    }
+
+    const missingRequiredOption = product.options.find(
+      (option) => option.isRequired && !selectedOptionIds.includes(option.id),
+    );
+
+    if (missingRequiredOption) {
+      throw new BadRequestException(
+        `Option "${missingRequiredOption.displayName}" is required`,
+      );
+    }
+
+    const combinationKey = [...optionValueIds].sort().join(':');
+
+    const duplicateCombination = product.variants.some((variant) => {
+      const existingCombinationKey = variant.optionValues
+        .map((item) => item.optionValueId)
+        .sort()
+        .join(':');
+      return existingCombinationKey === combinationKey;
+    });
+
+    if (duplicateCombination) {
+      throw new ConflictException(
+        'A variant with the same option combination already exist',
+      );
+    }
+
+    const initialStock = dto.stock ?? 0;
+    const shouldBeDeafault =
+      product.variants.length === 0 || dto.isDefault === true;
+
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        if (shouldBeDeafault) {
+          await transaction.productVariant.updateMany({
+            where: {
+              productId,
+              deletedAt: null,
+            },
+            data: {
+              isDefault: false,
+            },
+          });
+        }
+
+        return transaction.productVariant.create({
+          data: {
+            productId,
+            sku: dto.sku,
+            name: dto.name,
+            price: dto.price,
+            costPrice: dto.costPrice,
+            stock: initialStock,
+            trackStock: dto.traceStock,
+            isDefault: shouldBeDeafault,
+            isActive: dto.isActive,
+            optionValues: {
+              create: optionValueIds.map((optionValueId) => ({
+                optionValueId,
+              })),
+            },
+            stockMovements:
+              initialStock > 0
+                ? {
+                    create: {
+                      type: StockMovementType.RESTOCK,
+                      quantityChange: initialStock,
+                      stockBefore: 0,
+                      stockAfter: initialStock,
+                      note: 'Initial stock',
+                      createdBy,
+                    },
+                  }
+                : undefined,
+          },
+          include: {
+            optionValues: {
+              include: {
+                optionValue: {
+                  include: {
+                    option: {
+                      select: {
+                        id: true,
+                        name: true,
+                        displayName: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Variant SKU is already in use');
       }
 
       throw error;
