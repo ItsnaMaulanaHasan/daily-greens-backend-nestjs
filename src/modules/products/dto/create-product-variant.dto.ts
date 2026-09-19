@@ -50,7 +50,7 @@ export class CreateProductVariantDto {
   @ApiPropertyOptional({
     example: 18000,
     minimum: 0,
-    description: 'Harga modal; tidak digunakan kepada customer',
+    description: 'Harga modal; tidak ditampilkan kepada customer',
   })
   @IsOptional()
   @IsNumber({
@@ -98,7 +98,7 @@ export class CreateProductVariantDto {
   @ApiPropertyOptional({
     type: [String],
     format: 'uuid',
-    description: 'Daftar UUID nilai opsi yang membentuk kombinasi variant',
+    description: 'Daftar UUID nilai opsi yang membentuk kombinasi varian',
     example: [
       '11111111-1111-4111-8111-111111111111',
       '22222222-2222-4222-8222-222222222222',

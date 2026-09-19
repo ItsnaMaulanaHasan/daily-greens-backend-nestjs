@@ -55,7 +55,7 @@ export class ProductService {
         imageUrl: true,
         position: true,
       },
-      orderBy: [{ position: 'asc' }, { name: 'desc' }],
+      orderBy: [{ position: 'asc' }, { name: 'asc' }],
     });
   }
 

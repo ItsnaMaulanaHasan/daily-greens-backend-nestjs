@@ -141,7 +141,7 @@ export class ProductController {
   @ApiOperation({
     summary: 'Membuat produk baru',
     description:
-      'Produk  dibuat tanpa varian dan menggunakan status DRAFT secara default',
+      'Produk dibuat tanpa varian dan menggunakan status DRAFT secara default',
   })
   @ApiBearerAuth('access-token')
   @ApiCreatedResponse({
