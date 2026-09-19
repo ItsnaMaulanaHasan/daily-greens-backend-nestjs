@@ -82,6 +82,14 @@ export class CreateProductOptionDto {
   displayName: string;
 
   @ApiPropertyOptional({
+    example: true,
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isRequired: boolean;
+
+  @ApiPropertyOptional({
     example: 1,
     default: 0,
     minimum: 0,
@@ -113,5 +121,5 @@ export class CreateProductOptionDto {
     each: true,
   })
   @Type(() => CreateProductOptionValueDto)
-  values: CreateProductOptionValueDto;
+  values: CreateProductOptionValueDto[];
 }
