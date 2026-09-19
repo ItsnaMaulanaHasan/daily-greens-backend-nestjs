@@ -18,6 +18,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -29,6 +30,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { ProductService } from './product.service';
 
+@ApiTags('Products')
 @Controller('products')
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
@@ -139,7 +141,7 @@ export class ProductController {
   @ApiOperation({
     summary: 'Membuat produk baru',
     description:
-      'Produk  dibuat tanpa varian dan menggunakan status DRAFT secara deafult',
+      'Produk  dibuat tanpa varian dan menggunakan status DRAFT secara default',
   })
   @ApiBearerAuth('access-token')
   @ApiCreatedResponse({
@@ -187,7 +189,7 @@ export class ProductController {
     description: 'Produk tidak ditemukan',
   })
   @ApiConflictResponse({
-    description: 'Nama opsi atau opsi sudah digunakan pada produk ini',
+    description: 'Nama opsi atau nilai opsi sudah digunakan pada produk ini',
   })
   @Post(':productId/options')
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -47,7 +47,7 @@ export class CreateProductDto {
   })
   @IsOptional()
   @IsString()
-  description: string;
+  description?: string;
 
   @ApiPropertyOptional({
     enum: ProductStatus,

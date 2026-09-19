@@ -8,7 +8,7 @@ import { Prisma, StockMovementType } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
-import { CreateProductVariantDto } from './dto/create-product-variant-dto';
+import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 
@@ -55,7 +55,7 @@ export class ProductService {
         imageUrl: true,
         position: true,
       },
-      orderBy: [{ position: 'desc' }, { name: 'asc' }],
+      orderBy: [{ position: 'asc' }, { name: 'desc' }],
     });
   }
 
@@ -64,6 +64,7 @@ export class ProductService {
       return await this.prisma.productCategory.update({
         where: {
           id,
+          deletedAt: null,
         },
         data: {
           name: dto.name,
@@ -75,6 +76,13 @@ export class ProductService {
         },
       });
     } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Category name or slug is already in use');
+      }
+
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
@@ -330,17 +338,17 @@ export class ProductService {
 
     if (duplicateCombination) {
       throw new ConflictException(
-        'A variant with the same option combination already exist',
+        'A variant with the same option combination already exists',
       );
     }
 
     const initialStock = dto.stock ?? 0;
-    const shouldBeDeafault =
+    const shouldBeDefault =
       product.variants.length === 0 || dto.isDefault === true;
 
     try {
       return await this.prisma.$transaction(async (transaction) => {
-        if (shouldBeDeafault) {
+        if (shouldBeDefault) {
           await transaction.productVariant.updateMany({
             where: {
               productId,
@@ -360,8 +368,8 @@ export class ProductService {
             price: dto.price,
             costPrice: dto.costPrice,
             stock: initialStock,
-            trackStock: dto.traceStock,
-            isDefault: shouldBeDeafault,
+            trackStock: dto.trackStock,
+            isDefault: shouldBeDefault,
             isActive: dto.isActive,
             optionValues: {
               create: optionValueIds.map((optionValueId) => ({

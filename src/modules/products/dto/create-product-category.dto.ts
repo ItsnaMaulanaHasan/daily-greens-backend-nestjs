@@ -62,5 +62,5 @@ export class CreateProductCategoryDto {
   })
   @IsOptional()
   @IsBoolean()
-  isActive: boolean;
+  isActive?: boolean;
 }

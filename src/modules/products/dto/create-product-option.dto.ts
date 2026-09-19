@@ -87,7 +87,7 @@ export class CreateProductOptionDto {
   })
   @IsOptional()
   @IsBoolean()
-  isRequired: boolean;
+  isRequired?: boolean;
 
   @ApiPropertyOptional({
     example: 1,

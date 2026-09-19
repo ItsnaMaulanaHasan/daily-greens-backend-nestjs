@@ -76,12 +76,12 @@ export class CreateProductVariantDto {
   })
   @IsOptional()
   @IsBoolean()
-  traceStock?: boolean;
+  trackStock?: boolean;
 
   @ApiPropertyOptional({
     example: true,
     default: true,
-    description: 'Apakah varuan ini menjadi pilihan default produk',
+    description: 'Apakah varian ini menjadi pilihan default produk',
   })
   @IsOptional()
   @IsBoolean()
