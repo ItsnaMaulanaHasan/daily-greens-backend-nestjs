@@ -24,6 +24,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
+import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { ProductService } from './product.service';
@@ -161,5 +162,40 @@ export class ProductController {
   @Roles('admin')
   createProduct(@Body() dto: CreateProductDto) {
     return this.productService.createProduct(dto);
+  }
+
+  // product option
+  @ApiOperation({
+    summary: 'Membuat opsi beserta nilai opsi untuk produk',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'productId',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
+  @ApiCreatedResponse({
+    description: 'Opsi produk dan nilai opsinya berhasil dibuat',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk tidak ditemukan',
+  })
+  @ApiConflictResponse({
+    description: 'Nama opsi atau opsi sudah digunakan pada produk ini',
+  })
+  @Post(':productId/options')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  createProductOption(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Body() dto: CreateProductOptionDto,
+  ) {
+    return this.productService.createProductOption(productId, dto);
   }
 }
