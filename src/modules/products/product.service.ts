@@ -3,9 +3,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from 'generated/prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
+import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 
@@ -169,6 +170,59 @@ export class ProductService {
         error.code === 'P2002'
       ) {
         throw new ConflictException('Product slug is already in use');
+      }
+
+      throw error;
+    }
+  }
+
+  // product option
+  async createProductOption(productId: string, dto: CreateProductOptionDto) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id: productId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    try {
+      return await this.prisma.productOption.create({
+        data: {
+          productId,
+          name: dto.name,
+          displayName: dto.displayName,
+          isRequired: dto.isRequired,
+          position: dto.position,
+          values: {
+            create: dto.values.map((optionValue) => ({
+              value: optionValue.value,
+              label: optionValue.label,
+              position: optionValue.position,
+              isActive: optionValue.isActive,
+            })),
+          },
+        },
+        include: {
+          values: {
+            orderBy: [{ position: 'asc' }, { label: 'asc' }],
+          },
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Option name or option value is already in use for this product',
+        );
       }
 
       throw error;
