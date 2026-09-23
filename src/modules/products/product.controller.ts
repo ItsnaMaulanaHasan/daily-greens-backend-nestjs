@@ -7,9 +7,11 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
@@ -21,14 +23,21 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
+import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { ProductService } from './product.service';
+
+interface AuthenticatedRequest extends Request {
+  user: AuthenticatedUser;
+}
 
 @ApiTags('Products')
 @Controller('products')
@@ -199,5 +208,50 @@ export class ProductController {
     @Body() dto: CreateProductOptionDto,
   ) {
     return this.productService.createProductOption(productId, dto);
+  }
+
+  // produk variant
+  @ApiOperation({
+    summary: 'Membuat varian produk',
+    description: 'Varian menyimpan kombinasi opsi, harga, stok, dan SKU produk',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'productId',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
+  @ApiCreatedResponse({
+    description: 'Varian produk berhasil dibuat',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Nilai opsi tidak valid, tidak lengkap, atau terdapat lebih dari satu nilai dari opsi yang sama',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login, tapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk tidak ditemukan',
+  })
+  @ApiConflictResponse({
+    description: 'SKU atau kombinasi opsi varian sudah digunakan',
+  })
+  @Post(':productId/variants')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  createProductVariant(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CreateProductVariantDto,
+  ) {
+    return this.productService.createProductVariant(
+      productId,
+      request.user.id,
+      dto,
+    );
   }
 }
