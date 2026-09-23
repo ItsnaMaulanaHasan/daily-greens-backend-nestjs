@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -32,6 +33,7 @@ import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { ProductService } from './product.service';
 
@@ -147,6 +149,19 @@ export class ProductController {
   }
 
   // product
+  @ApiOperation({
+    summary: 'Mengambil katalog produk yang aktif',
+    description:
+      'Endpoint publik dengan pencarian, filter kategori, produk unggulan, dan pagination',
+  })
+  @ApiOkResponse({
+    description: 'Katalog produk berhasil diambil',
+  })
+  @Get()
+  findAllPublicProducts(@Query() query: ProductQueryDto) {
+    return this.productService.findAllPublicProducts(query);
+  }
+
   @ApiOperation({
     summary: 'Membuat produk baru',
     description:
