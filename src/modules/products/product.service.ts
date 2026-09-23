@@ -542,4 +542,118 @@ export class ProductService {
       },
     };
   }
+
+  async findPublicProductBySlug(slug: string) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        slug,
+        status: ProductStatus.ACTIVE,
+        deletedAt: null,
+        category: {
+          is: {
+            isActive: true,
+            deletedAt: null,
+          },
+        },
+        variants: {
+          some: {
+            isActive: true,
+            deletedAt: null,
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        allowCustomerNote: true,
+        notePlaceholder: true,
+        preparationTimeMinutes: true,
+        isFeatured: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+        images: {
+          where: {
+            deletedAt: null,
+          },
+          orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }],
+          select: {
+            id: true,
+            imageUrl: true,
+            altText: true,
+            position: true,
+            isPrimary: true,
+          },
+        },
+        options: {
+          orderBy: [{ position: 'asc' }, { displayName: 'asc' }],
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            isRequired: true,
+            position: true,
+            values: {
+              where: {
+                isActive: true,
+              },
+              orderBy: [{ position: 'asc' }, { label: 'asc' }],
+              select: {
+                id: true,
+                value: true,
+                label: true,
+                position: true,
+              },
+            },
+          },
+        },
+        variants: {
+          where: {
+            isActive: true,
+            deletedAt: null,
+          },
+          orderBy: [{ isDefault: 'desc' }, { price: 'asc' }],
+          select: {
+            id: true,
+            sku: true,
+            name: true,
+            price: true,
+            stock: true,
+            trackStock: true,
+            isDefault: true,
+            optionValues: {
+              select: {
+                optionValue: {
+                  select: {
+                    id: true,
+                    value: true,
+                    label: true,
+                    option: {
+                      select: {
+                        id: true,
+                        name: true,
+                        displayName: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return product;
+  }
 }
