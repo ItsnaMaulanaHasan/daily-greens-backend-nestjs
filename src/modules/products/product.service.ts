@@ -4,12 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, StockMovementType } from '../../../generated/prisma/client';
+import {
+  Prisma,
+  ProductStatus,
+  StockMovementType,
+} from '../../../generated/prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
+import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 
 @Injectable()
@@ -419,5 +424,122 @@ export class ProductService {
 
       throw error;
     }
+  }
+
+  // product query
+  async findAllPublicProducts(query: ProductQueryDto) {
+    const skip = (query.page - 1) * query.limit;
+
+    const where: Prisma.ProductWhereInput = {
+      status: ProductStatus.ACTIVE,
+      deletedAt: null,
+      category: {
+        is: {
+          isActive: true,
+          deletedAt: null,
+          ...(query.categorySlug ? { slug: query.categorySlug } : {}),
+        },
+      },
+      variants: {
+        some: {
+          isActive: true,
+          deletedAt: null,
+        },
+      },
+      ...(query.search
+        ? {
+            name: {
+              contains: query.search,
+              mode: 'insensitive',
+            },
+          }
+        : {}),
+    };
+
+    const [products, total] = await this.prisma.$transaction([
+      this.prisma.product.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: [{ position: 'asc' }, { name: 'asc' }],
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          allowCustomerNote: true,
+          notePlaceholder: true,
+          preparationTimeMinutes: true,
+          isFeatured: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+          images: {
+            where: {
+              deletedAt: null,
+            },
+            orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }],
+            take: 1,
+            select: {
+              id: true,
+              imageUrl: true,
+              altText: true,
+              isPrimary: true,
+            },
+          },
+          variants: {
+            where: {
+              isActive: true,
+              deletedAt: null,
+            },
+            orderBy: [{ isDefault: 'desc' }, { price: 'asc' }],
+            select: {
+              id: true,
+              sku: true,
+              name: true,
+              price: true,
+              stock: true,
+              trackStock: true,
+              isDefault: true,
+              optionValues: {
+                select: {
+                  optionValue: {
+                    select: {
+                      id: true,
+                      value: true,
+                      label: true,
+                      option: {
+                        select: {
+                          id: true,
+                          name: true,
+                          displayName: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.product.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: products,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 }
