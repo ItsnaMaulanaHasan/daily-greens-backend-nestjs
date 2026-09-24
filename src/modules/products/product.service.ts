@@ -284,6 +284,32 @@ export class ProductService {
     }
   }
 
+  async removeProduct(id: string) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    return this.prisma.product.update({
+      where: {
+        id,
+      },
+      data: {
+        status: ProductStatus.ARCHIVED,
+        deletedAt: new Date(),
+      },
+    });
+  }
+
   // product option
   async createProductOption(productId: string, dto: CreateProductOptionDto) {
     const product = await this.prisma.product.findFirst({
