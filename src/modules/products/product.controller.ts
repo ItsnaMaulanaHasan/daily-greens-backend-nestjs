@@ -3,26 +3,36 @@ import {
   Controller,
   Delete,
   Get,
+  HttpStatus,
   Param,
+  ParseFilePipeBuilder,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiBody,
   ApiConflictResponse,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiPayloadTooLargeResponse,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -36,10 +46,15 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { UploadProductImageDto } from './dto/upload-product-image.dto';
 import { ProductService } from './product.service';
 
 interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
+}
+
+interface UploadedProductImageFile {
+  buffer: Buffer;
 }
 
 @ApiTags('Products')
@@ -161,6 +176,25 @@ export class ProductController {
   @Get()
   findAllPublicProducts(@Query() query: ProductQueryDto) {
     return this.productService.findAllPublicProducts(query);
+  }
+
+  @ApiOperation({
+    summary: 'Mengambil detail produk berdasarkan slug',
+  })
+  @ApiParam({
+    name: 'slug',
+    description: 'Slug produk',
+    example: 'es-kopi-susu',
+  })
+  @ApiOkResponse({
+    description: 'Detail produk berhasil diambil',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk tidak ditemukan atau tidak aktif',
+  })
+  @Get(':slug')
+  findPublicProductBySlug(@Param('slug') slug: string) {
+    return this.productService.findPublicProductBySlug(slug);
   }
 
   @ApiOperation({
@@ -339,22 +373,96 @@ export class ProductController {
     );
   }
 
+  // product image
   @ApiOperation({
-    summary: 'Mengambil detail produk berdasarkan slug',
+    summary: 'Mengunggah gambar produk',
   })
+  @ApiBearerAuth('access-token')
+  @ApiConsumes('multipart/form-data')
   @ApiParam({
-    name: 'slug',
-    description: 'Slug produk',
-    example: 'es-kopi-susu',
+    name: 'productId',
+    description: 'UUID produk',
+    format: 'uuid',
   })
-  @ApiOkResponse({
-    description: 'Detail produk berhasil diambil',
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['image'],
+      properties: {
+        image: {
+          type: 'string',
+          format: 'binary',
+          description: 'File JPG, PNG, atau WebP dengan ukuran maksimal 5 MB',
+        },
+        altText: {
+          type: 'string',
+          example: 'Es Kopi Susu Gula Aren',
+        },
+        position: {
+          type: 'interger',
+          minimum: 0,
+          example: 1,
+        },
+        isPrimary: {
+          type: 'boolean',
+          example: true,
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    description: 'Gambar produk berhasil diunggah',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedai, tidak valid, atau kadaluwara',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
   })
   @ApiNotFoundResponse({
-    description: 'Produk tidak ditemukan atau tidak aktif',
+    description: 'Produk tidak ditemukan',
   })
-  @Get(':slug')
-  findPublicProductBySlug(@Param('slug') slug: string) {
-    return this.productService.findPublicProductBySlug(slug);
+  @ApiConflictResponse({
+    description: 'Produk sudah memiliki lima gambar aktif',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'File tidak tersedia atau format file tidak didukung',
+  })
+  @ApiPayloadTooLargeResponse({
+    description: 'Ukuran file melebihi 5 MB',
+  })
+  @ApiBadGatewayResponse({
+    description: 'Gagal mengunggah gambar ke Cloudinary',
+  })
+  @UseInterceptors(
+    FileInterceptor('image', {
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
+  @Post('productId/images')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  uploadProductImage(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @UploadedFile(
+      new ParseFilePipeBuilder()
+        .addFileTypeValidator({
+          fileType: /^image\/(jpeg|png|webp)$/,
+        })
+        .addMaxSizeValidator({
+          maxSize: 5 * 1024 * 1024,
+        })
+        .build({
+          fileIsRequired: true,
+          errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+        }),
+    )
+    file: UploadedProductImageFile,
+    @Body() dto: UploadProductImageDto,
+  ) {
+    return this.productService.uploadProductImage(productId, file, dto);
   }
 }
