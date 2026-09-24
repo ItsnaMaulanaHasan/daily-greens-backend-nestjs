@@ -269,4 +269,23 @@ export class ProductController {
       dto,
     );
   }
+
+  @ApiOperation({
+    summary: 'Mengambil detail produk berdasarkan slug',
+  })
+  @ApiParam({
+    name: 'slug',
+    description: 'Slug produk',
+    example: 'es-kopi-susu',
+  })
+  @ApiOkResponse({
+    description: 'Detail produk berhasil diambil',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk tidak ditemukan atau tidak aktif',
+  })
+  @Get(':slug')
+  findPublicProductBySlug(@Param('slug') slug: string) {
+    return this.productService.findPublicProductBySlug(slug);
+  }
 }
