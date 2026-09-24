@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   Injectable,
@@ -9,6 +10,7 @@ import {
   ProductStatus,
   StockMovementType,
 } from '../../../generated/prisma/client';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
@@ -17,10 +19,18 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { UploadProductImageDto } from './dto/upload-product-image.dto';
+
+interface BufferedFile {
+  buffer: Buffer;
+}
 
 @Injectable()
 export class ProductService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   // product category
   async createCategory(dto: CreateProductCategoryDto) {
@@ -781,5 +791,87 @@ export class ProductService {
     }
 
     return product;
+  }
+
+  // product image
+  async uploadProductImage(
+    productId: string,
+    file: BufferedFile,
+    dto: UploadProductImageDto,
+  ) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id: productId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    const imageCount = await this.prisma.productImage.count({
+      where: {
+        id: productId,
+        deletedAt: null,
+      },
+    });
+
+    if (imageCount >= 5) {
+      throw new ConflictException(
+        'A product can have a maximum of five images',
+      );
+    }
+
+    let uploadResult;
+
+    try {
+      uploadResult = await this.cloudinaryService.uploadProductImage(
+        file,
+        productId,
+      );
+    } catch {
+      throw new BadGatewayException(
+        'Failed to upload product image to Cloudinary',
+      );
+    }
+
+    const shouldBePrimary = imageCount === 0 || dto.isPrimary === true;
+
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        if (shouldBePrimary) {
+          await transaction.productImage.updateMany({
+            where: {
+              productId,
+              deletedAt: null,
+            },
+            data: {
+              isPrimary: false,
+            },
+          });
+        }
+
+        return transaction.productImage.create({
+          data: {
+            productId,
+            imageUrl: uploadResult.secure_url,
+            publicId: uploadResult.public_id,
+            altText: dto.altText,
+            position: dto.position,
+            isPrimary: shouldBePrimary,
+          },
+        });
+      });
+    } catch (error) {
+      await this.cloudinaryService
+        .deleteImage(uploadResult.public_id)
+        .catch(() => undefined);
+
+      throw error;
+    }
   }
 }
