@@ -49,4 +49,34 @@ export class CloudinaryService {
       uploadStream.end(file.buffer);
     });
   }
+
+  uploadProductImage(
+    file: BufferedFile,
+    productId: string,
+  ): Promise<UploadApiResponse> {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: `daily-greens/products/${productId}`,
+          resource_type: 'image',
+          unique_filename: true,
+          overwrite: false,
+        },
+        (error, result) => {
+          if (error) {
+            reject(new Error(error.message));
+          }
+
+          if (!result) {
+            reject(new Error('Cloudinary did not return an upload result'));
+            return;
+          }
+
+          resolve(result);
+        },
+      );
+
+      uploadStream.end(file.buffer);
+    });
+  }
 }
