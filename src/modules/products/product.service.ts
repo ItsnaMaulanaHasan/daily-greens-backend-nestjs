@@ -18,6 +18,7 @@ import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
+import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UploadProductImageDto } from './dto/upload-product-image.dto';
 
@@ -551,6 +552,114 @@ export class ProductService {
         error.code === 'P2002'
       ) {
         throw new ConflictException('Variant SKU is already in use');
+      }
+
+      throw error;
+    }
+  }
+
+  async updateProductVariant(
+    productId: string,
+    variantId: string,
+    dto: UpdateProductVariantDto,
+  ) {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: {
+        id: variantId,
+        productId,
+        deletedAt: null,
+        product: {
+          is: {
+            deletedAt: null,
+          },
+        },
+      },
+      select: {
+        id: true,
+        isDefault: true,
+      },
+    });
+
+    if (!variant) {
+      throw new NotFoundException('Product variant not found');
+    }
+
+    if (variant.isDefault && dto.isDefault === false) {
+      throw new BadRequestException(
+        'The default variant cannot be unset directly; set another variant as default instead',
+      );
+    }
+
+    if (variant.isDefault && dto.isActive === false) {
+      throw new BadRequestException(
+        'The default variant cannot be deactivated; set another variant as default first',
+      );
+    }
+
+    try {
+      return await this.prisma.$transaction(async (transaction) => {
+        if (dto.isDefault === true) {
+          await transaction.productVariant.updateMany({
+            where: {
+              productId,
+              deletedAt: null,
+              id: {
+                not: variantId,
+              },
+            },
+            data: {
+              isDefault: false,
+            },
+          });
+        }
+
+        return transaction.productVariant.update({
+          where: {
+            id: variantId,
+            productId,
+            deletedAt: null,
+          },
+          data: {
+            sku: dto.sku,
+            name: dto.name,
+            price: dto.price,
+            costPrice: dto.costPrice,
+            trackStock: dto.trackStock,
+            isDefault: dto.isDefault,
+            isActive: dto.isActive,
+          },
+          include: {
+            optionValues: {
+              include: {
+                optionValue: {
+                  include: {
+                    option: {
+                      select: {
+                        id: true,
+                        name: true,
+                        displayName: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        });
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Variant SKU is already in use');
+      }
+
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Product variant not found');
       }
 
       throw error;
