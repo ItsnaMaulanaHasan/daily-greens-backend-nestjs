@@ -16,6 +16,7 @@ import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductService {
@@ -188,6 +189,98 @@ export class ProductService {
       }
 
       throw error;
+    }
+  }
+
+  async updateProduct(id: string, dto: UpdateProductDto) {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        variants: {
+          where: {
+            isActive: true,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Product not found');
+    }
+
+    if (dto.categoryId) {
+      const category = await this.prisma.productCategory.findFirst({
+        where: {
+          id: dto.categoryId,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!category) {
+        throw new NotFoundException('Product category not found or inactive');
+      }
+    }
+
+    if (dto.status === ProductStatus.ACTIVE && product.variants.length === 0) {
+      throw new BadRequestException(
+        'Product cannot be activated without an active variant',
+      );
+    }
+
+    try {
+      return await this.prisma.product.update({
+        where: {
+          id,
+          deletedAt: null,
+        },
+        data: {
+          categoryId: dto.categoryId,
+          name: dto.name,
+          slug: dto.slug,
+          description: dto.description,
+          status: dto.status,
+          allowCustomerNote: dto.allowCustomerNote,
+          notePlaceholder: dto.notePlaceholder,
+          preparationTimeMinutes: dto.preparationTimeMinutes,
+          isFeatured: dto.isFeatured,
+          position: dto.position,
+        },
+        include: {
+          category: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Product slug is already in use');
+      }
+
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Product not found');
+      }
     }
   }
 
