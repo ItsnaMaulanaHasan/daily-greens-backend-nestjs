@@ -465,4 +465,40 @@ export class ProductController {
   ) {
     return this.productService.uploadProductImage(productId, file, dto);
   }
+
+  @ApiOperation({
+    summary: 'Menghapus gambar produk',
+    description:
+      'File dihapus dari Cloudinary dan record gambar dihapus secara soft delete',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'imageId',
+    description: 'UUID gambar produk',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Gambar produk berhasil dihapus',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk atau gambar tidak ditemukan',
+  })
+  @ApiBadGatewayResponse({
+    description: 'Gagal menghapus gambar dari Cloudinary',
+  })
+  @Delete(':productId/images/:imageId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  removeProductImage(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('imageId', new ParseUUIDPipe()) imageId: string,
+  ) {
+    return this.productService.removeProductImage(productId, imageId);
+  }
 }
