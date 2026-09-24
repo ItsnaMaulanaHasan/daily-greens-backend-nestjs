@@ -229,6 +229,36 @@ export class ProductController {
     return this.productService.updateProduct(id, dto);
   }
 
+  @ApiOperation({
+    summary: 'Menghapus produk',
+    description:
+      'Produk dihapus secara soft delete dan statusnya diubah menjadi ARCHIVED',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'id',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Produk berhasil dihapus',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login, tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk tidak ditemukan atau sudah dihapus',
+  })
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  removeProduct(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.productService.removeProduct(id);
+  }
+
   // product option
   @ApiOperation({
     summary: 'Membuat opsi beserta nilai opsi untuk produk',
