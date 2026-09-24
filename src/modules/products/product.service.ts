@@ -281,6 +281,8 @@ export class ProductService {
       ) {
         throw new NotFoundException('Product not found');
       }
+
+      throw error;
     }
   }
 
@@ -363,7 +365,7 @@ export class ProductService {
     }
   }
 
-  // product variant
+  // variant produk
   async createProductVariant(
     productId: string,
     createdBy: string,
@@ -571,6 +573,11 @@ export class ProductService {
               contains: query.search,
               mode: 'insensitive',
             },
+          }
+        : {}),
+      ...(query.isFeatured !== undefined
+        ? {
+            isFeatured: query.isFeatured,
           }
         : {}),
     };

@@ -13,7 +13,7 @@ export class UploadProductImageDto {
   @ApiPropertyOptional({
     example: 'Es Kopi Susu Gula Aren',
     maxLength: 255,
-    description: 'Teks alternatif untuk aksesbilitas gambar',
+    description: 'Teks alternatif untuk aksesibilitas gambar',
   })
   @IsOptional()
   @IsString()

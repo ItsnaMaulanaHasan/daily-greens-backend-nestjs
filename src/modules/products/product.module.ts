@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { CloudinaryModule } from 'src/common/cloudinary/cloudinary.module';
+import { CloudinaryModule } from '../../common/cloudinary/cloudinary.module';
 import { AuthModule } from '../auth/auth.module';
 import { ProductController } from './product.controller';
 import { ProductService } from './product.service';

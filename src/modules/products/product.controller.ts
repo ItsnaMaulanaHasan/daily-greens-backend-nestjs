@@ -294,7 +294,7 @@ export class ProductController {
     return this.productService.createProductOption(productId, dto);
   }
 
-  // produk variant
+  // variant produk
   @ApiOperation({
     summary: 'Membuat varian produk',
     description: 'Varian menyimpan kombinasi opsi, harga, stok, dan SKU produk',

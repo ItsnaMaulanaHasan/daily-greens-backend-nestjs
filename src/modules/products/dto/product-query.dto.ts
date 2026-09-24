@@ -34,7 +34,7 @@ export class ProductQueryDto {
     description: 'Filter produk unggulan',
   })
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === 'true') {
       return true;
     }
@@ -43,7 +43,7 @@ export class ProductQueryDto {
       return false;
     }
 
-    return false;
+    return value;
   })
   @IsBoolean()
   isFeatured?: boolean;

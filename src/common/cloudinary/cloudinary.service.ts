@@ -65,6 +65,7 @@ export class CloudinaryService {
         (error, result) => {
           if (error) {
             reject(new Error(error.message));
+            return;
           }
 
           if (!result) {
@@ -77,6 +78,26 @@ export class CloudinaryService {
       );
 
       uploadStream.end(file.buffer);
+    });
+  }
+
+  deleteImage(publicId: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      void cloudinary.uploader.destroy(
+        publicId,
+        {
+          resource_type: 'image',
+          invalidate: true,
+        },
+        (error: Error | null) => {
+          if (error) {
+            reject(new Error(error.message));
+            return;
+          }
+
+          resolve();
+        },
+      );
     });
   }
 }
