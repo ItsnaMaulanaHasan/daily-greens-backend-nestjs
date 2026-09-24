@@ -874,4 +874,74 @@ export class ProductService {
       throw error;
     }
   }
+
+  async removeProductImage(productId: string, imageId: string) {
+    const image = await this.prisma.productImage.findFirst({
+      where: {
+        id: imageId,
+        productId,
+        deletedAt: null,
+        product: {
+          is: {
+            deletedAt: null,
+          },
+        },
+      },
+      select: {
+        id: true,
+        publicId: true,
+        isPrimary: true,
+      },
+    });
+
+    if (!image) {
+      throw new NotFoundException('Product image not found');
+    }
+
+    try {
+      await this.cloudinaryService.deleteImage(imageId);
+    } catch {
+      throw new BadGatewayException(
+        'Failed to delete product image from cloudinary',
+      );
+    }
+
+    return this.prisma.$transaction(async (transaction) => {
+      const deletedImage = await transaction.productImage.update({
+        where: {
+          id: image.id,
+        },
+        data: {
+          isPrimary: false,
+          deletedAt: new Date(),
+        },
+      });
+
+      if (image.isPrimary) {
+        const nextPrimaryImage = await transaction.productImage.findFirst({
+          where: {
+            productId,
+            deletedAt: null,
+          },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+          },
+        });
+
+        if (nextPrimaryImage) {
+          await transaction.productImage.update({
+            where: {
+              id: nextPrimaryImage.id,
+            },
+            data: {
+              isPrimary: true,
+            },
+          });
+        }
+      }
+
+      return deletedImage;
+    });
+  }
 }
