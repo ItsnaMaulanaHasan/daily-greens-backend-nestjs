@@ -45,6 +45,7 @@ import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
+import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UploadProductImageDto } from './dto/upload-product-image.dto';
 import { ProductService } from './product.service';
@@ -371,6 +372,50 @@ export class ProductController {
       request.user.id,
       dto,
     );
+  }
+
+  @ApiOperation({
+    summary: 'Memperbarui varian produk',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'productId',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'variantId',
+    description: 'UUID varian produk',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Varian produk berhasil diperbarui',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Varian default tidak dapat langsung dinonaktifkan atau diubah menjadi bukan default',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Acces token tidak tersedai, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login, tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk atau varian produk tidak ditemukan',
+  })
+  @ApiConflictResponse({
+    description: 'SKU varian sudah digunakan',
+  })
+  @Patch(':productId/variants/:variantId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  updateProductVariant(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @Body() dto: UpdateProductVariantDto,
+  ) {
+    return this.productService.updateProductVariant(productId, variantId, dto);
   }
 
   // product image
