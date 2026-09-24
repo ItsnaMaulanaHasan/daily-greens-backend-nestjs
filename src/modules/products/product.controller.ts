@@ -35,6 +35,7 @@ import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductService } from './product.service';
 
 interface AuthenticatedRequest extends Request {
@@ -188,6 +189,44 @@ export class ProductController {
   @Roles('admin')
   createProduct(@Body() dto: CreateProductDto) {
     return this.productService.createProduct(dto);
+  }
+
+  @ApiOperation({
+    summary: 'Memperbarui data produk',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'id',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Produk berhasil diperbarui',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Produk tidak dapat diaktifkan karena belum memiliki varian aktif',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login, tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk atau kategori produk tidak ditemukan',
+  })
+  @ApiConflictResponse({
+    description: 'Slug produk sudah digunakan',
+  })
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  updateProduct(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateProductDto,
+  ) {
+    return this.productService.updateProduct(id, dto);
   }
 
   // product option
