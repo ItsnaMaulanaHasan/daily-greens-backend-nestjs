@@ -39,6 +39,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
+import { AdjustProductStockDto } from './dto/adjust-product-stock.dto';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
@@ -545,5 +546,55 @@ export class ProductController {
     @Param('imageId', new ParseUUIDPipe()) imageId: string,
   ) {
     return this.productService.removeProductImage(productId, imageId);
+  }
+
+  // product stock
+  @ApiOperation({
+    summary: 'Mengubah stok varian produk',
+    description:
+      'Setiap perubahan stok akan disimpan sebagai histori StockMovement',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'productId',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'variantId',
+    description: 'UUID varian produk',
+    format: 'uuid',
+  })
+  @ApiCreatedResponse({
+    description: 'Stok dan histori perubahan stok berhasil dibuat',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Perubahan stok tidak valid, stok tidak mencukupi, atau pelacakan stok dinonaktifkan',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Acces token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk atau varian produk tidak ditemukan',
+  })
+  @Post(':productId/variants/:variantId/stock-movements')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  adjustProductVariantStock(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: AdjustProductStockDto,
+  ) {
+    return this.productService.adjustProductVariantStock(
+      productId,
+      variantId,
+      request.user.id,
+      dto,
+    );
   }
 }
