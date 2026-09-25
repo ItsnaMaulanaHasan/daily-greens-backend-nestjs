@@ -12,6 +12,7 @@ import {
 } from '../../../generated/prisma/client';
 import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AdjustProductStockDto } from './dto/adjust-product-stock.dto';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
@@ -1051,6 +1052,112 @@ export class ProductService {
       }
 
       return deletedImage;
+    });
+  }
+
+  // product stock
+  async adjustProductVariantStock(
+    productId: string,
+    variantId: string,
+    createdBy: string,
+    dto: AdjustProductStockDto,
+  ) {
+    if (dto.type !== StockMovementType.ADJUSTMENT && dto.quantityChange < 0) {
+      throw new BadRequestException(
+        'Only ADJUSTMENT may use a negative quantity change',
+      );
+    }
+
+    if (dto.type === StockMovementType.ADJUSTMENT && !dto.note?.trim()) {
+      throw new BadRequestException(
+        'A note is required for a stock adjustment',
+      );
+    }
+
+    return this.prisma.$transaction(async (transaction) => {
+      const variant = await transaction.productVariant.findFirst({
+        where: {
+          id: variantId,
+          productId,
+          deletedAt: null,
+          product: {
+            is: {
+              deletedAt: null,
+            },
+          },
+        },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          trackStock: true,
+        },
+      });
+
+      if (!variant) {
+        throw new NotFoundException('Product variant not found');
+      }
+
+      if (!variant.trackStock) {
+        throw new BadRequestException(
+          'Stock tracking is disabled for this variant',
+        );
+      }
+
+      const updateResult = await transaction.productVariant.updateMany({
+        where: {
+          id: variantId,
+          productId,
+          deletedAt: null,
+          ...(dto.quantityChange < 0
+            ? {
+                stock: {
+                  gte: Math.abs(dto.quantityChange),
+                },
+              }
+            : {}),
+        },
+        data: {
+          stock: {
+            increment: dto.quantityChange,
+          },
+        },
+      });
+
+      if (updateResult.count === 0) {
+        throw new BadRequestException('Insuffient stock for this adjustment');
+      }
+
+      const updateVariant = await transaction.productVariant.findUniqueOrThrow({
+        where: {
+          id: variantId,
+        },
+        select: {
+          id: true,
+          sku: true,
+          name: true,
+          stock: true,
+        },
+      });
+
+      const stockBefore = updateVariant.stock - dto.quantityChange;
+
+      const stockMovement = await transaction.stockMovement.create({
+        data: {
+          variantId,
+          type: dto.type,
+          quantityChange: dto.quantityChange,
+          stockBefore,
+          stockAfter: updateVariant.stock,
+          note: dto.note?.trim(),
+          createdBy,
+        },
+      });
+
+      return {
+        variant: updateVariant,
+        stockMovement,
+      };
     });
   }
 }
