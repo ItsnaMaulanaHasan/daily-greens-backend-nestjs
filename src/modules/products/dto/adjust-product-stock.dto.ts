@@ -21,7 +21,7 @@ export class AdjustProductStockDto {
   @ApiProperty({
     enum: allowedManualStockMovementTypes,
     example: StockMovementType.RESTOCK,
-    description: 'Jenis perubahan stock',
+    description: 'Jenis perubahan stok',
   })
   @IsEnum(StockMovementType)
   @IsIn(allowedManualStockMovementTypes)
@@ -37,8 +37,8 @@ export class AdjustProductStockDto {
   quantityChange: number;
 
   @ApiPropertyOptional({
-    example: 'Penambahan stock dari supplier',
-    maxLength: 100,
+    example: 'Penambahan stok dari supplier',
+    maxLength: 1000,
   })
   @IsOptional()
   @IsString()

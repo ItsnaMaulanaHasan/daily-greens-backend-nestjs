@@ -330,7 +330,7 @@ export class ProductController {
     return this.productService.createProductOption(productId, dto);
   }
 
-  // variant produk
+  // varian produk
   @ApiOperation({
     summary: 'Membuat varian produk',
     description: 'Varian menyimpan kombinasi opsi, harga, stok, dan SKU produk',
@@ -397,7 +397,7 @@ export class ProductController {
       'Varian default tidak dapat langsung dinonaktifkan atau diubah menjadi bukan default',
   })
   @ApiUnauthorizedResponse({
-    description: 'Acces token tidak tersedai, tidak valid, atau kadaluwarsa',
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
   })
   @ApiForbiddenResponse({
     description: 'User sudah login, tetapi bukan admin',
@@ -483,7 +483,7 @@ export class ProductController {
           example: 'Es Kopi Susu Gula Aren',
         },
         position: {
-          type: 'interger',
+          type: 'integer',
           minimum: 0,
           example: 1,
         },
@@ -498,7 +498,7 @@ export class ProductController {
     description: 'Gambar produk berhasil diunggah',
   })
   @ApiUnauthorizedResponse({
-    description: 'Access token tidak tersedai, tidak valid, atau kadaluwara',
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
   })
   @ApiForbiddenResponse({
     description: 'User sudah login tetapi bukan admin',
@@ -526,7 +526,7 @@ export class ProductController {
       },
     }),
   )
-  @Post('productId/images')
+  @Post(':productId/images')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
   uploadProductImage(
@@ -556,6 +556,11 @@ export class ProductController {
       'File dihapus dari Cloudinary dan record gambar dihapus secara soft delete',
   })
   @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'productId',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
   @ApiParam({
     name: 'imageId',
     description: 'UUID gambar produk',
@@ -611,7 +616,7 @@ export class ProductController {
       'Perubahan stok tidak valid, stok tidak mencukupi, atau pelacakan stok dinonaktifkan',
   })
   @ApiUnauthorizedResponse({
-    description: 'Acces token tidak tersedia, tidak valid, atau kadaluwarsa',
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
   })
   @ApiForbiddenResponse({
     description: 'User sudah login tetapi bukan admin',
