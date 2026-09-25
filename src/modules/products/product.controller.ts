@@ -419,6 +419,44 @@ export class ProductController {
     return this.productService.updateProductVariant(productId, variantId, dto);
   }
 
+  @ApiOperation({
+    summary: 'Menghapus varian produk',
+    description:
+      'Varian dihapus secara soft delete dan varian default baru akan dipilih jika diperlukan',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'productId',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'variantId',
+    description: 'UUID varian produk',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Varian produk berhasil dihapus',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk atau varian produk tidak ditemukan',
+  })
+  @Delete(':productId/variants/:variantId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  removeProductVariant(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+  ) {
+    return this.productService.removeProductVariant(productId, variantId);
+  }
+
   // product image
   @ApiOperation({
     summary: 'Mengunggah gambar produk',
