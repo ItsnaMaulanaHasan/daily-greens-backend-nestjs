@@ -667,6 +667,66 @@ export class ProductService {
     }
   }
 
+  async removeProductVariant(productId: string, variantId: string) {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: {
+        id: variantId,
+        productId,
+        deletedAt: null,
+        product: {
+          is: {
+            deletedAt: null,
+          },
+        },
+      },
+      select: {
+        id: true,
+        isDefault: true,
+      },
+    });
+
+    if (!variant) {
+      throw new NotFoundException('Product variant not found');
+    }
+    return this.prisma.$transaction(async (transaction) => {
+      const deletedVariant = await transaction.productVariant.update({
+        where: {
+          id: variantId,
+        },
+        data: {
+          isActive: false,
+          isDefault: false,
+          deletedAt: new Date(),
+        },
+      });
+
+      const nextActiveVariant = await transaction.productVariant.findFirst({
+        where: {
+          productId,
+          isActive: true,
+          deletedAt: null,
+        },
+        orderBy: [{ createdAt: 'asc' }],
+        select: {
+          id: true,
+        },
+      });
+
+      if (!nextActiveVariant) {
+        await transaction.product.update({
+          where: {
+            id: productId,
+          },
+          data: {
+            status: ProductStatus.INACTIVE,
+          },
+        });
+      }
+
+      return deletedVariant;
+    });
+  }
+
   // product query
   async findAllPublicProducts(query: ProductQueryDto) {
     const skip = (query.page - 1) * query.limit;
