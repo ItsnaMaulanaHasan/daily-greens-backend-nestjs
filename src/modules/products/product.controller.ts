@@ -45,6 +45,7 @@ import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { StockMovementQueryDto } from './dto/stock-movement-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -638,6 +639,47 @@ export class ProductController {
       variantId,
       request.user.id,
       dto,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Mengambil hisotri perubahan stok varian',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'productId',
+    description: 'UUID produk',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'variantId',
+    description: 'UUID varian produk',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Histori perubahan stok berhasil diambil',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia. tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Produk atau varian produk tidak ditemukan',
+  })
+  @Get(':productId/variants/:variantId/stock-movements')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  findProductVariantStockMovements(
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Param('variantId', new ParseUUIDPipe()) variantId: string,
+    @Query() query: StockMovementQueryDto,
+  ) {
+    return this.productService.findProductVariantStockMovements(
+      productId,
+      variantId,
+      query,
     );
   }
 }
