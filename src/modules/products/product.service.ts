@@ -18,6 +18,7 @@ import { CreateProductOptionDto } from './dto/create-product-option.dto';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { StockMovementQueryDto } from './dto/stock-movement-query.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -377,7 +378,7 @@ export class ProductService {
     }
   }
 
-  // variant produk
+  // varian produk
   async createProductVariant(
     productId: string,
     createdBy: string,
@@ -985,7 +986,7 @@ export class ProductService {
 
     const imageCount = await this.prisma.productImage.count({
       where: {
-        id: productId,
+        productId,
         deletedAt: null,
       },
     });
@@ -1069,10 +1070,10 @@ export class ProductService {
     }
 
     try {
-      await this.cloudinaryService.deleteImage(imageId);
+      await this.cloudinaryService.deleteImage(image.publicId);
     } catch {
       throw new BadGatewayException(
-        'Failed to delete product image from cloudinary',
+        'Failed to delete product image from Cloudinary',
       );
     }
 
@@ -1185,7 +1186,7 @@ export class ProductService {
       });
 
       if (updateResult.count === 0) {
-        throw new BadRequestException('Insuffient stock for this adjustment');
+        throw new BadRequestException('Insufficient stock for this adjustment');
       }
 
       const updateVariant = await transaction.productVariant.findUniqueOrThrow({
@@ -1219,5 +1220,87 @@ export class ProductService {
         stockMovement,
       };
     });
+  }
+
+  async findProductVariantStockMovements(
+    productId: string,
+    variantId: string,
+    query: StockMovementQueryDto,
+  ) {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: {
+        id: variantId,
+        productId,
+      },
+      select: {
+        id: true,
+        sku: true,
+        name: true,
+        stock: true,
+        trackStock: true,
+      },
+    });
+
+    if (!variant) {
+      throw new NotFoundException('Product variant not found');
+    }
+
+    const skip = (query.page - 1) * query.limit;
+
+    const where: Prisma.StockMovementWhereInput = {
+      variantId,
+      ...(query.type
+        ? {
+            type: query.type,
+          }
+        : {}),
+    };
+
+    const [stockMovements, total] = await this.prisma.$transaction([
+      this.prisma.stockMovement.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        select: {
+          id: true,
+          type: true,
+          quantityChange: true,
+          stockBefore: true,
+          stockAfter: true,
+          referenceType: true,
+          referenceId: true,
+          note: true,
+          createdAt: true,
+          createdByUser: {
+            select: {
+              id: true,
+              email: true,
+              profile: {
+                select: {
+                  fullName: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.stockMovement.count({
+        where,
+      }),
+    ]);
+
+    return {
+      variant,
+      data: stockMovements,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 }
