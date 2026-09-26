@@ -62,6 +62,17 @@ export class CreatePromotionDto {
   code?: string;
 
   @ApiProperty({
+    example: 20,
+    minimum: 0.01,
+    description: 'Persentase diskon atau nominal diskon sesuai discountType',
+  })
+  @IsNumber({
+    maxDecimalPlaces: 2,
+  })
+  @Min(0.01)
+  discountValue: number;
+
+  @ApiProperty({
     enum: DiscountType,
     example: DiscountType.PERCENTAGE,
   })
