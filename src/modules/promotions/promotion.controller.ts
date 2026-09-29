@@ -1,4 +1,12 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -6,6 +14,7 @@ import {
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
@@ -15,6 +24,7 @@ import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
+import { PromotionQueryDto } from './dto/promotion-query.dto';
 import { PromotionService } from './promotion.service';
 
 interface AuthenticatedRequest extends Request {
@@ -57,5 +67,26 @@ export class PromotionController {
     @Body() dto: CreatePromotionDto,
   ) {
     return this.promotionService.createPromotion(request.user.id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Mengambil daftar promosi',
+    description: 'Endpoint admin dengan pencarian, filter, dan pagination',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiOkResponse({
+    description: 'Daftar promosi berhasil diambil',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  findAllPromotion(@Query() query: PromotionQueryDto) {
+    return this.promotionService.findAllPromotions(query);
   }
 }
