@@ -12,6 +12,7 @@ import {
 } from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
+import { PromotionQueryDto } from './dto/promotion-query.dto';
 
 @Injectable()
 export class PromotionService {
@@ -20,53 +21,13 @@ export class PromotionService {
   async createPromotion(createdBy: string, dto: CreatePromotionDto) {
     const applicationType =
       dto.applicationType ?? PromotionApplicationType.AUTOMATIC;
-
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
 
-    if (startsAt >= endsAt) {
-      throw new BadRequestException(
-        'Promotion end date must be later than start date',
-      );
-    }
-
-    if (applicationType === PromotionApplicationType.COUPON && !dto.code) {
-      throw new BadRequestException(
-        'Promotion code is required for coupon promotion',
-      );
-    }
-
-    if (applicationType === PromotionApplicationType.AUTOMATIC && dto.code) {
-      throw new BadRequestException(
-        'Automatic promotion cannot have a coupon code',
-      );
-    }
-
-    if (
-      dto.discountType === DiscountType.PERCENTAGE &&
-      dto.discountValue > 100
-    ) {
-      throw new BadRequestException('Percentage discount cannot exceed 100');
-    }
-
-    if (
-      dto.discountType === DiscountType.FIXED_AMOUNT &&
-      dto.maximumDiscount !== undefined
-    ) {
-      throw new BadRequestException(
-        'Maximum discount is only available for percentage discount',
-      );
-    }
-
-    if (
-      dto.usageLimit !== undefined &&
-      dto.usageLimitPerUser !== undefined &&
-      dto.usageLimitPerUser > dto.usageLimit
-    ) {
-      throw new BadRequestException(
-        'Usage limit per user cannot exceed total usage limit',
-      );
-    }
+    this.validatePromotionDates(startsAt, endsAt);
+    this.validatePromotionApplication(applicationType, dto.code);
+    this.validatePromotionDiscount(dto);
+    this.validatePromotionUsage(dto);
 
     const categoryIds = dto.categoryIds ?? [];
     const productIds = dto.productIds ?? [];
@@ -180,6 +141,61 @@ export class PromotionService {
     }
   }
 
+  private validatePromotionDates(startsAt: Date, endsAt: Date): void {
+    if (startsAt >= endsAt) {
+      throw new BadRequestException(
+        'Promotion end date must be later than start date',
+      );
+    }
+  }
+
+  private validatePromotionApplication(
+    applicationType: PromotionApplicationType,
+    code?: string,
+  ): void {
+    if (applicationType === PromotionApplicationType.COUPON && !code) {
+      throw new BadRequestException(
+        'Promotion code is required for coupon promotion',
+      );
+    }
+
+    if (applicationType === PromotionApplicationType.AUTOMATIC && code) {
+      throw new BadRequestException(
+        'Automatic promotion cannot have a coupon code',
+      );
+    }
+  }
+
+  private validatePromotionDiscount(dto: CreatePromotionDto): void {
+    if (
+      dto.discountType === DiscountType.PERCENTAGE &&
+      dto.discountValue > 100
+    ) {
+      throw new BadRequestException('Percentage discount cannot exceed 100');
+    }
+
+    if (
+      dto.discountType === DiscountType.FIXED_AMOUNT &&
+      dto.maximumDiscount !== undefined
+    ) {
+      throw new BadRequestException(
+        'Maximum discount is only available for percentage discount',
+      );
+    }
+  }
+
+  private validatePromotionUsage(dto: CreatePromotionDto): void {
+    if (
+      dto.usageLimit !== undefined &&
+      dto.usageLimitPerUser !== undefined &&
+      dto.usageLimitPerUser > dto.usageLimit
+    ) {
+      throw new BadRequestException(
+        'Usage limit per user cannot exceed total usage limit',
+      );
+    }
+  }
+
   private validatePromotionTargets(
     scope: PromotionScope,
     categoryIds: string[],
@@ -283,5 +299,114 @@ export class PromotionService {
         );
       }
     }
+  }
+
+  async findAllPromotions(query: PromotionQueryDto) {
+    const skip = (query.page - 1) * query.limit;
+
+    const where: Prisma.PromotionWhereInput = {
+      deletedAt: null,
+      ...(query.search
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                code: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+        : {}),
+      ...(query.applicationType
+        ? {
+            applicationType: query.applicationType,
+          }
+        : {}),
+      ...(query.scope
+        ? {
+            scope: query.scope,
+          }
+        : {}),
+      ...(query.isActive !== undefined
+        ? {
+            isActive: query.isActive,
+          }
+        : {}),
+    };
+
+    const [promotions, total] = await this.prisma.$transaction([
+      this.prisma.promotion.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+        include: {
+          createdByUser: {
+            select: {
+              id: true,
+              email: true,
+              profile: {
+                select: {
+                  fullName: true,
+                },
+              },
+            },
+          },
+          categoryTargets: {
+            include: {
+              category: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+            },
+          },
+          productTargets: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+            },
+          },
+          variantTargets: {
+            include: {
+              variant: {
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.promotion.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: promotions,
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 }
