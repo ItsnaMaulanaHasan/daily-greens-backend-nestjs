@@ -19,6 +19,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -86,7 +87,7 @@ export class PromotionController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
-  findAllPromotion(@Query() query: PromotionQueryDto) {
+  findAllPromotions(@Query() query: PromotionQueryDto) {
     return this.promotionService.findAllPromotions(query);
   }
 }

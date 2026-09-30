@@ -79,7 +79,7 @@ export class CreatePromotionDto {
   @IsEnum(DiscountType)
   discountType: DiscountType;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 25000,
     minimum: 0,
     description: 'Batas maksimum potongan untuk diskon persentase',
@@ -112,7 +112,7 @@ export class CreatePromotionDto {
   @Min(1)
   minimumQuantity?: number;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     enum: PromotionScope,
     example: PromotionScope.CATEGORY,
   })

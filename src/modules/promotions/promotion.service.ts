@@ -49,7 +49,7 @@ export class PromotionService {
     );
 
     try {
-      return this.prisma.promotion.create({
+      return await this.prisma.promotion.create({
         data: {
           name: dto.name,
           description: dto.description,
@@ -221,7 +221,7 @@ export class PromotionService {
       (!hasCategories || hasProducts || hasVariants)
     ) {
       throw new BadRequestException(
-        'CATEGORY promotion requires only cateforyIds',
+        'CATEGORY promotion requires only categoryIds',
       );
     }
 
@@ -291,6 +291,11 @@ export class PromotionService {
             in: variantIds,
           },
           deletedAt: null,
+          product: {
+            is: {
+              deletedAt: null,
+            },
+          },
         },
       });
 
@@ -347,7 +352,7 @@ export class PromotionService {
         where,
         skip,
         take: query.limit,
-        orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+        orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
         include: {
           createdByUser: {
             select: {
