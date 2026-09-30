@@ -2,6 +2,9 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -16,6 +19,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -24,6 +28,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
+import { UpdateProductDto } from '../products/dto/update-product.dto';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { PromotionQueryDto } from './dto/promotion-query.dto';
 import { PromotionService } from './promotion.service';
@@ -89,5 +94,46 @@ export class PromotionController {
   @Roles('admin')
   findAllPromotions(@Query() query: PromotionQueryDto) {
     return this.promotionService.findAllPromotions(query);
+  }
+
+  @ApiOperation({
+    summary: 'Memperbarui promosi',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'id',
+    description: 'UUID promosi',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Promosi berhasil diperbarui',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Periode, aturan diskon, kode, atau target promosi tidak valid',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Promosi atau salah satu target promosi tidak ditemukan',
+  })
+  @ApiConflictResponse({
+    description: 'Kode promosi sudah digunakan',
+  })
+  @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  updatePromotion(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: UpdateProductDto,
+  ) {
+    return this.promotionService.updatePromotion(id, dto);
   }
 }
