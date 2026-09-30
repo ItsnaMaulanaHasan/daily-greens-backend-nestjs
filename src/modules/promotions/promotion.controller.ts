@@ -166,4 +166,17 @@ export class PromotionController {
   removePromotion(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.promotionService.removePromotion(id);
   }
+
+  @ApiOperation({
+    summary: 'Mengambil promosi otomatis yang sedang aktif',
+    description:
+      'Endpoint publik dan tidak menampilkan kode promo bertipe kupon',
+  })
+  @ApiOkResponse({
+    description: 'Daftar promosi otomatid aktif berhasil diambil',
+  })
+  @Get('active')
+  findActiveAutomaticPromotions() {
+    return this.promotionService.findActiveAutomaticPromotions();
+  }
 }
