@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { PromotionQueryDto } from './dto/promotion-query.dto';
+import { UpdatePromotionDto } from './dto/update-promotion.dto';
 
 @Injectable()
 export class PromotionService {
@@ -58,7 +59,7 @@ export class PromotionService {
           discountValue: dto.discountValue,
           maximumDiscount: dto.maximumDiscount,
           minimumOrderAmount: dto.minimumOrderAmount,
-          minimumQuantity: dto.minimumOrderAmount,
+          minimumQuantity: dto.minimumQuantity,
           scope: dto.scope,
           startsAt,
           endsAt,
@@ -408,5 +409,209 @@ export class PromotionService {
         totalPages: Math.ceil(total / query.limit),
       },
     };
+  }
+
+  async updatePromotion(id: string, dto: UpdatePromotionDto) {
+    const promotion = await this.prisma.promotion.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      include: {
+        categoryTargets: {
+          select: {
+            categoryId: true,
+          },
+        },
+        productTargets: {
+          select: {
+            productId: true,
+          },
+        },
+        variantTargets: {
+          select: {
+            variantId: true,
+          },
+        },
+      },
+    });
+
+    if (!promotion) {
+      throw new NotFoundException('Promotion not found');
+    }
+
+    const applicationType = dto.applicationType ?? promotion.applicationType;
+
+    const discountType = dto.discountType ?? promotion.discountType;
+
+    const discountValue =
+      dto.discountValue ?? promotion.discountValue.toNumber();
+
+    const scope = dto.scope ?? promotion.scope;
+
+    const startsAt = dto.startsAt ? new Date(dto.startsAt) : promotion.startsAt;
+
+    const endsAt = dto.endsAt ? new Date(dto.endsAt) : promotion.endsAt;
+
+    const code =
+      applicationType === PromotionApplicationType.COUPON
+        ? (dto.code ?? promotion.code)
+        : null;
+
+    const maximumDiscount =
+      discountType === DiscountType.FIXED_AMOUNT
+        ? null
+        : (dto.maximumDiscount ??
+          promotion.maximumDiscount?.toNumber() ??
+          null);
+
+    const usageLimit = dto.usageLimit ?? promotion.usageLimit;
+
+    const usageLimitPerUser =
+      dto.usageLimitPerUser ?? promotion.usageLimitPerUser;
+
+    if (startsAt >= endsAt) {
+      throw new BadRequestException(
+        'Promotion end date must be later than start date',
+      );
+    }
+
+    if (applicationType === PromotionApplicationType.COUPON && !code) {
+      throw new BadRequestException(
+        'Promotion code is required for coupon promotion',
+      );
+    }
+
+    if (discountType === DiscountType.PERCENTAGE && discountValue > 100) {
+      throw new BadRequestException('Percentage discount cannot exceed 100');
+    }
+
+    if (
+      usageLimit !== null &&
+      usageLimitPerUser !== null &&
+      usageLimitPerUser > usageLimit
+    ) {
+      throw new BadRequestException(
+        'Usage limit per user cannot exceed total usage limit',
+      );
+    }
+
+    const categoryIds =
+      dto.categoryIds ??
+      (scope === promotion.scope
+        ? promotion.categoryTargets.map((target) => target.categoryId)
+        : []);
+
+    const productIds =
+      dto.productIds ??
+      (scope === promotion.scope
+        ? promotion.productTargets.map((target) => target.productId)
+        : []);
+
+    const variantIds =
+      dto.variantIds ??
+      (scope === promotion.scope
+        ? promotion.variantTargets.map((target) => target.variantId)
+        : []);
+
+    this.validatePromotionTargets(scope, categoryIds, productIds, variantIds);
+
+    await this.ensurePromotionTargetsExist(
+      scope,
+      categoryIds,
+      productIds,
+      variantIds,
+    );
+
+    try {
+      return await this.prisma.promotion.update({
+        where: {
+          id,
+          deletedAt: null,
+        },
+        data: {
+          name: dto.name,
+          description: dto.description,
+          applicationType,
+          code,
+          discountType,
+          discountValue,
+          maximumDiscount,
+          minimumOrderAmount: dto.minimumOrderAmount,
+          minimumQuantity: dto.minimumQuantity,
+          scope,
+          startsAt,
+          endsAt,
+          usageLimit,
+          usageLimitPerUser,
+          priority: dto.priority,
+          isStackable: dto.isStackable,
+          isActive: dto.isActive,
+          categoryTargets: {
+            deleteMany: {},
+            create: categoryIds.map((categoryId) => ({ categoryId })),
+          },
+          productTargets: {
+            deleteMany: {},
+            create: productIds.map((productId) => ({ productId })),
+          },
+          variantTargets: {
+            deleteMany: {},
+            create: variantIds.map((variantId) => ({ variantId })),
+          },
+        },
+        include: {
+          categoryTargets: {
+            include: {
+              category: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+            },
+          },
+          productTargets: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  slug: true,
+                },
+              },
+            },
+          },
+          variantTargets: {
+            include: {
+              variant: {
+                select: {
+                  id: true,
+                  sku: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Promotion code is already in use');
+      }
+
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Promotion not found');
+      }
+
+      throw error;
+    }
   }
 }
