@@ -645,4 +645,71 @@ export class PromotionService {
       },
     });
   }
+
+  findActiveAutomaticPromotions() {
+    const now = new Date();
+
+    return this.prisma.promotion.findMany({
+      where: {
+        applicationType: PromotionApplicationType.AUTOMATIC,
+        isActive: true,
+        deletedAt: null,
+        startsAt: {
+          lte: now,
+        },
+        endsAt: {
+          gte: now,
+        },
+      },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        discountType: true,
+        discountValue: true,
+        maximumDiscount: true,
+        minimumOrderAmount: true,
+        minimumQuantity: true,
+        scope: true,
+        startsAt: true,
+        endsAt: true,
+        priority: true,
+        isStackable: true,
+        categoryTargets: {
+          select: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        productTargets: {
+          select: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        variantTargets: {
+          select: {
+            variant: {
+              select: {
+                id: true,
+                sku: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
 }
