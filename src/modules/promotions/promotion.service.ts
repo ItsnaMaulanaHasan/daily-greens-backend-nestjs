@@ -712,4 +712,73 @@ export class PromotionService {
       },
     });
   }
+
+  async findPromotionById(id: string) {
+    const promotion = await this.prisma.promotion.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      include: {
+        createdByUser: {
+          select: {
+            id: true,
+            email: true,
+            profile: {
+              select: {
+                fullName: true,
+              },
+            },
+          },
+        },
+        categoryTargets: {
+          include: {
+            category: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        productTargets: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+              },
+            },
+          },
+        },
+        variantTargets: {
+          include: {
+            variant: {
+              select: {
+                id: true,
+                sku: true,
+                name: true,
+                price: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!promotion) {
+      throw new NotFoundException('Promotion not found');
+    }
+
+    return promotion;
+  }
 }
