@@ -619,4 +619,30 @@ export class PromotionService {
       throw error;
     }
   }
+
+  async removePromotion(id: string) {
+    const promotion = await this.prisma.promotion.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!promotion) {
+      throw new NotFoundException('Promotion not found');
+    }
+
+    return this.prisma.promotion.update({
+      where: {
+        id,
+      },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+      },
+    });
+  }
 }
