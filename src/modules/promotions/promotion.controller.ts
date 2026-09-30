@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -135,5 +136,34 @@ export class PromotionController {
     @Body() dto: UpdateProductDto,
   ) {
     return this.promotionService.updatePromotion(id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Menghapus promosi',
+    description: 'Promosi dihapus secara soft delete',
+  })
+  @ApiBearerAuth('access-token')
+  @ApiParam({
+    name: 'id',
+    description: 'UUID promosi',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Promosi berhasil dihapus',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Promosi tidak ditemukan atau sudah dihapus',
+  })
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  removePromotion(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.promotionService.removePromotion(id);
   }
 }
