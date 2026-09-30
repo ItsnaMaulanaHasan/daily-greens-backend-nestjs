@@ -103,6 +103,16 @@ export class CreatePromotionDto {
   minimumOrderAmount?: number;
 
   @ApiPropertyOptional({
+    example: 2,
+    minimum: 1,
+    description: 'Jumlah minimum item agar promosi dapat digunakan',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  minimumQuantity?: number;
+
+  @ApiPropertyOptional({
     enum: PromotionScope,
     example: PromotionScope.CATEGORY,
   })
