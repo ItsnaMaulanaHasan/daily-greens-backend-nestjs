@@ -179,4 +179,26 @@ export class PromotionController {
   findActiveAutomaticPromotions() {
     return this.promotionService.findActiveAutomaticPromotions();
   }
+
+  @ApiOperation({
+    summary: 'Mengambil detail promosi berdasarkan UUID',
+  })
+  @ApiOkResponse({
+    description: 'Detail promosi berhasil diambil',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Access token tidak tersedia, tidak valid, atau kadaluwarsa',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Promosi tidak ditemukan',
+  })
+  @Get(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  findPromotionById(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.promotionService.findPromotionById(id);
+  }
 }
