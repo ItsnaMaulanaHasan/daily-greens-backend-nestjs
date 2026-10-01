@@ -118,4 +118,15 @@ export class CartController {
   ) {
     return this.cartService.removeItem(request.user.id, itemId);
   }
+
+  @ApiOperation({
+    summary: 'Menghapus seluruh item dari cart',
+  })
+  @ApiOkResponse({
+    description: 'Cart berhasil dikosongkan',
+  })
+  @Delete('items')
+  clearMyCart(@Req() request: AuthenticatedRequest) {
+    return this.cartService.cleanMyCart(request.user.id);
+  }
 }
