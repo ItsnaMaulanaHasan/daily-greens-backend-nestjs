@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -94,5 +95,27 @@ export class CartController {
     @Body() dto: UpdateCartItemDto,
   ) {
     return this.cartService.updateItem(request.user.id, itemId, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Menghapus satu item dari cart',
+  })
+  @ApiParam({
+    name: 'itemId',
+    description: 'UUID CartItem',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Cart item berhasil dihapus',
+  })
+  @ApiNotFoundResponse({
+    description: 'Cart item tidak ditemukan',
+  })
+  @Delete('items/:itemId')
+  removeItem(
+    @Req() request: AuthenticatedRequest,
+    @Param('itemId', new ParseUUIDPipe()) itemId: string,
+  ) {
+    return this.cartService.removeItem(request.user.id, itemId);
   }
 }
