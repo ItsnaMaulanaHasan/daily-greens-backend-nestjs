@@ -144,7 +144,7 @@ export class CartService {
       },
     });
 
-    if (!variant || variant.deletedAt !== null) {
+    if (variant?.deletedAt !== null) {
       throw new NotFoundException('Product variant not found');
     }
 
