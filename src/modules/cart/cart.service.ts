@@ -100,6 +100,7 @@ export class CartService {
         variant: {
           id: item.variant.id,
           sku: item.variant.sku,
+          name: item.variant.name,
           stock: item.variant.stock,
           trackStock: item.variant.trackStock,
           product: {
@@ -375,7 +376,7 @@ export class CartService {
     return this.getMyCart(userId);
   }
 
-  async cleanMyCart(userId: string) {
+  async clearMyCart(userId: string) {
     const cart = await this.prisma.cart.findUnique({
       where: {
         userId,
