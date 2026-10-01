@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
@@ -6,6 +16,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -13,6 +24,7 @@ import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CartService } from './cart.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
+import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
 interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
@@ -55,5 +67,32 @@ export class CartController {
   @Post('items')
   addItem(@Req() request: AuthenticatedRequest, @Body() dto: AddCartItemDto) {
     return this.cartService.addItem(request.user.id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Memperbarui jumlah atau catatan item',
+  })
+  @ApiParam({
+    name: 'itemId',
+    description: 'UUID CartItem',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Cart item berhasil diperbarui',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Data update kosong, produk tidak tersedia, atau stok tidak mencukupi',
+  })
+  @ApiNotFoundResponse({
+    description: 'Cart item tidak ditemukan',
+  })
+  @Patch('items/:itemId')
+  updateItem(
+    @Req() request: AuthenticatedRequest,
+    @Param('itemId', new ParseUUIDPipe()) itemId: string,
+    @Body() dto: UpdateCartItemDto,
+  ) {
+    return this.cartService.updateItem(request.user.id, itemId, dto);
   }
 }
