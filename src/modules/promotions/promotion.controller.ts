@@ -29,9 +29,9 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
-import { UpdateProductDto } from '../products/dto/update-product.dto';
 import { CreatePromotionDto } from './dto/create-promotion.dto';
 import { PromotionQueryDto } from './dto/promotion-query.dto';
+import { UpdatePromotionDto } from './dto/update-promotion.dto';
 import { PromotionService } from './promotion.service';
 
 interface AuthenticatedRequest extends Request {
@@ -133,7 +133,7 @@ export class PromotionController {
   @Roles('admin')
   updatePromotion(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: UpdateProductDto,
+    @Body() dto: UpdatePromotionDto,
   ) {
     return this.promotionService.updatePromotion(id, dto);
   }
