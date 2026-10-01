@@ -69,7 +69,7 @@ export class CartService {
         item.variant.product.deletedAt === null;
 
       const isVariantAvailable =
-        item.variant.trackStock && item.variant.deletedAt === null;
+        item.variant.isActive && item.variant.deletedAt === null;
 
       const hasEnoughStock =
         !item.variant.trackStock || item.variant.stock >= item.quantity;
@@ -84,7 +84,7 @@ export class CartService {
       } else if (!isVariantAvailable) {
         unavailableReason = 'Product variant is unavailable';
       } else if (!hasEnoughStock) {
-        unavailableReason = 'Insuffient stock';
+        unavailableReason = 'Insufficient stock';
       }
 
       return {
@@ -100,7 +100,7 @@ export class CartService {
         variant: {
           id: item.variant.id,
           sku: item.variant.sku,
-          stock: item.variant.name,
+          stock: item.variant.stock,
           trackStock: item.variant.trackStock,
           product: {
             id: item.variant.product.id,
@@ -119,8 +119,8 @@ export class CartService {
       summary: {
         totalItems: items.length,
         totalQuantity: items.reduce((total, item) => total + item.quantity, 0),
+        subtotal: items.reduce((total, item) => total + item.lineTotal, 0),
       },
-      subtotal: items.reduce((total, item) => total + item.lineTotal, 0),
     };
   }
 
@@ -145,7 +145,7 @@ export class CartService {
       },
     });
 
-    if (variant?.deletedAt !== null) {
+    if (!variant || variant.deletedAt !== null) {
       throw new NotFoundException('Product variant not found');
     }
 
@@ -211,7 +211,7 @@ export class CartService {
 
       if (variant.trackStock && newTotalQuantity > variant.stock) {
         throw new BadRequestException(
-          `Insufficient stock, Available stock: ${variant.stock}`,
+          `Insufficient stock. Available stock: ${variant.stock}`,
         );
       }
 
@@ -332,21 +332,21 @@ export class CartService {
           `Insufficient stock. Available stock: ${cartItem.variant.stock}`,
         );
       }
-
-      await this.prisma.cartItem.update({
-        where: {
-          id: cartItem.id,
-        },
-        data: {
-          quantity: dto.quantity,
-          ...(dto.note !== undefined && {
-            note: normalizeNote,
-          }),
-        },
-      });
-
-      return this.getMyCart(userId);
     }
+
+    await this.prisma.cartItem.update({
+      where: {
+        id: cartItem.id,
+      },
+      data: {
+        quantity: dto.quantity,
+        ...(dto.note !== undefined && {
+          note: normalizeNote,
+        }),
+      },
+    });
+
+    return this.getMyCart(userId);
   }
 
   async removeItem(userId: string, cartItemId: string) {
