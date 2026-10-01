@@ -1,6 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ProductStatus } from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AddCartItemDto } from './dto/add-cart-item.dto';
 
 @Injectable()
 export class CartService {
@@ -116,5 +121,124 @@ export class CartService {
       },
       subtotal: items.reduce((total, item) => total + item.lineTotal, 0),
     };
+  }
+
+  async addItem(userId: string, dto: AddCartItemDto) {
+    const variant = await this.prisma.productVariant.findUnique({
+      where: {
+        id: dto.variantId,
+      },
+      select: {
+        id: true,
+        stock: true,
+        trackStock: true,
+        isActive: true,
+        deletedAt: true,
+        product: {
+          select: {
+            status: true,
+            deletedAt: true,
+            allowCustomerNote: true,
+          },
+        },
+      },
+    });
+
+    if (!variant || variant.deletedAt !== null) {
+      throw new NotFoundException('Product variant not found');
+    }
+
+    if (
+      !variant.isActive ||
+      variant.product.status !== ProductStatus.ACTIVE ||
+      variant.product.deletedAt !== null
+    ) {
+      throw new BadRequestException('Product variant is unavailable');
+    }
+
+    const normalizeNote = dto.note?.trim() || null;
+
+    if (normalizeNote && !variant.product.allowCustomerNote) {
+      throw new BadRequestException(
+        'Customer note is not allowed for this product',
+      );
+    }
+
+    await this.prisma.$transaction(async (transaction) => {
+      const cart = await transaction.cart.upsert({
+        where: {
+          userId,
+        },
+        create: {
+          userId,
+        },
+        update: {},
+        select: {
+          id: true,
+        },
+      });
+
+      const existingItem = await transaction.cartItem.findFirst({
+        where: {
+          cartId: cart.id,
+          variantId: variant.id,
+          note: normalizeNote,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const quantitySummary = await transaction.cartItem.aggregate({
+        where: {
+          cartId: cart.id,
+          variantId: variant.id,
+        },
+        _sum: {
+          quantity: true,
+        },
+      });
+
+      const currentQuantity = quantitySummary._sum.quantity ?? 0;
+      const newTotalQuantity = currentQuantity + dto.quantity;
+
+      if (newTotalQuantity > 99) {
+        throw new BadRequestException(
+          'Maximum quantity for this product variant is 99',
+        );
+      }
+
+      if (variant.trackStock && newTotalQuantity > variant.stock) {
+        throw new BadRequestException(
+          `Insufficient stock, Available stock: ${variant.stock}`,
+        );
+      }
+
+      if (existingItem) {
+        await transaction.cartItem.update({
+          where: {
+            id: existingItem.id,
+          },
+          data: {
+            quantity: {
+              increment: dto.quantity,
+            },
+          },
+        });
+
+        return;
+      }
+
+      await transaction.cartItem.create({
+        data: {
+          cartId: cart.id,
+          variantId: variant.id,
+          quantity: dto.quantity,
+          note: normalizeNote,
+        },
+      });
+    });
+
+    return this.getMyCart(userId);
   }
 }
