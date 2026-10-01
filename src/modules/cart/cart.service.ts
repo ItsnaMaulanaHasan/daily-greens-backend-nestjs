@@ -459,4 +459,31 @@ export class CartService {
 
     return this.getMyCart(userId);
   }
+
+  async removeCoupon(userId: string) {
+    const cart = await this.prisma.cart.findUnique({
+      where: {
+        userId,
+      },
+      select: {
+        id: true,
+        couponPromotionId: true,
+      },
+    });
+
+    if (!cart || cart.couponPromotionId === null) {
+      return this.getMyCart(userId);
+    }
+
+    await this.prisma.cart.update({
+      where: {
+        id: cart.id,
+      },
+      data: {
+        couponPromotionId: null,
+      },
+    });
+
+    return this.getMyCart(userId);
+  }
 }
