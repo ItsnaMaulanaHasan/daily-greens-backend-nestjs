@@ -6,6 +6,7 @@ import {
 import { ProductStatus } from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
+import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
 @Injectable()
 export class CartService {
@@ -240,5 +241,111 @@ export class CartService {
     });
 
     return this.getMyCart(userId);
+  }
+
+  async updateItem(userId: string, cartItemId: string, dto: UpdateCartItemDto) {
+    if (dto.quantity === undefined && dto.note === undefined) {
+      throw new BadRequestException('At least one field must be provided');
+    }
+
+    const cartItem = await this.prisma.cartItem.findFirst({
+      where: {
+        id: cartItemId,
+        cart: {
+          userId,
+        },
+      },
+      select: {
+        id: true,
+        cartId: true,
+        variantId: true,
+        quantity: true,
+        variant: {
+          select: {
+            stock: true,
+            trackStock: true,
+            isActive: true,
+            deletedAt: true,
+            product: {
+              select: {
+                status: true,
+                deletedAt: true,
+                allowCustomerNote: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!cartItem) {
+      throw new NotFoundException('Cart item not found');
+    }
+
+    if (
+      !cartItem.variant.isActive ||
+      cartItem.variant.deletedAt !== null ||
+      cartItem.variant.product.status !== ProductStatus.ACTIVE ||
+      cartItem.variant.product.deletedAt !== null
+    ) {
+      throw new BadRequestException('Product variant is unavailable');
+    }
+
+    const normalizeNote =
+      dto.note === undefined ? undefined : dto.note?.trim() || null;
+
+    if (normalizeNote && !cartItem.variant.product.allowCustomerNote) {
+      throw new BadRequestException(
+        'Customer note is not allowed for this product',
+      );
+    }
+
+    if (dto.quantity !== undefined) {
+      const quantitySummary = await this.prisma.cartItem.aggregate({
+        where: {
+          cartId: cartItem.cartId,
+          variantId: cartItem.variantId,
+          id: {
+            not: cartItem.id,
+          },
+        },
+        _sum: {
+          quantity: true,
+        },
+      });
+
+      const otherItemsQuantity = quantitySummary._sum.quantity ?? 0;
+
+      const newTotalQuantity = otherItemsQuantity + dto.quantity;
+
+      if (newTotalQuantity > 99) {
+        throw new BadRequestException(
+          'Maximum quantity for this product variant is 99',
+        );
+      }
+
+      if (
+        cartItem.variant.trackStock &&
+        newTotalQuantity > cartItem.variant.stock
+      ) {
+        throw new BadRequestException(
+          `Insufficient stock. Available stock: ${cartItem.variant.stock}`,
+        );
+      }
+
+      await this.prisma.cartItem.update({
+        where: {
+          id: cartItem.id,
+        },
+        data: {
+          quantity: dto.quantity,
+          ...(dto.note !== undefined && {
+            note: normalizeNote,
+          }),
+        },
+      });
+
+      return this.getMyCart(userId);
+    }
   }
 }
