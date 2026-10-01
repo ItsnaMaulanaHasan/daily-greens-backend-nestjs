@@ -402,6 +402,7 @@ model Promotion {
   categoryTargets PromotionCategory[]
   productTargets  PromotionProduct[]
   variantTargets  PromotionVariant[]
+  couponCarts     Cart[]              @relation("CartCouponPromotion")
 
   @@index([isActive, startsAt, endsAt])
   @@index([scope])
@@ -449,16 +450,19 @@ model PromotionVariant {
 }
 
 model Cart {
-  id     String @id @default(uuid()) @db.Uuid
-  userId String @unique @map("user_id") @db.Uuid
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @unique @map("user_id") @db.Uuid
+  couponPromotionId String? @map("coupon_promotion_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   // relations
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items CartItem[]
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  couponPromotion Promotion? @relation("CartCouponPromotion", fields: [couponPromotionId], references: [id], onDelete: SetNull)
+  items           CartItem[]
 
+  @@index([couponPromotionId])
   @@map("carts")
 }
 
