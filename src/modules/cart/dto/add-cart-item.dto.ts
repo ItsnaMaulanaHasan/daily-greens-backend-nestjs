@@ -13,10 +13,10 @@ import {
 export class AddCartItemDto {
   @ApiProperty({
     description: 'UUID varian produk yang dimasukkan ke cart',
-    example: '',
+    example: '11111111-1111-4111-8111-111111111111',
     format: 'uuid',
   })
-  @IsUUID(4)
+  @IsUUID('4')
   variantId: string;
 
   @ApiProperty({

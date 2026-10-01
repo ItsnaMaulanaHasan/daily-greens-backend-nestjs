@@ -120,9 +120,6 @@ export class PromotionController {
     description: 'User sudah login tetapi bukan admin',
   })
   @ApiNotFoundResponse({
-    description: 'User sudah login tetapi bukan admin',
-  })
-  @ApiNotFoundResponse({
     description: 'Promosi atau salah satu target promosi tidak ditemukan',
   })
   @ApiConflictResponse({
@@ -173,7 +170,7 @@ export class PromotionController {
       'Endpoint publik dan tidak menampilkan kode promo bertipe kupon',
   })
   @ApiOkResponse({
-    description: 'Daftar promosi otomatid aktif berhasil diambil',
+    description: 'Daftar promosi otomatis aktif berhasil diambil',
   })
   @Get('active')
   findActiveAutomaticPromotions() {

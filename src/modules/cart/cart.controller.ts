@@ -21,6 +21,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Request } from 'express';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CartService } from './cart.service';
@@ -127,6 +128,6 @@ export class CartController {
   })
   @Delete('items')
   clearMyCart(@Req() request: AuthenticatedRequest) {
-    return this.cartService.cleanMyCart(request.user.id);
+    return this.cartService.clearMyCart(request.user.id);
   }
 }
