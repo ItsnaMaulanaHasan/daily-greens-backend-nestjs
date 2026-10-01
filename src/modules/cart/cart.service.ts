@@ -3,9 +3,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ProductStatus } from 'generated/prisma/enums';
+import {
+  ProductStatus,
+  PromotionApplicationType,
+} from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
+import { ApplyCartCouponDto } from './dto/apply-cart-coupon.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
 @Injectable()
@@ -393,6 +397,63 @@ export class CartService {
     await this.prisma.cartItem.deleteMany({
       where: {
         cartId: cart.id,
+      },
+    });
+
+    return this.getMyCart(userId);
+  }
+
+  async applyCoupon(userId: string, dto: ApplyCartCouponDto) {
+    const now = new Date();
+
+    const promotion = await this.prisma.promotion.findFirst({
+      where: {
+        code: dto.code,
+        applicationType: PromotionApplicationType.COUPON,
+        isActive: true,
+        deletedAt: null,
+        startsAt: {
+          lte: now,
+        },
+        endsAt: {
+          gte: now,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!promotion) {
+      throw new BadRequestException('Coupon is invalid or unavailable');
+    }
+
+    const cart = await this.prisma.cart.findUnique({
+      where: {
+        userId,
+      },
+      select: {
+        id: true,
+        _count: {
+          select: {
+            items: true,
+          },
+        },
+      },
+    });
+
+    if (!cart || cart._count.items === 0) {
+      throw new BadRequestException(
+        'Coupon cannot be applied to an empty cart',
+      );
+    }
+
+    await this.prisma.cart.update({
+      where: {
+        id: cart.id,
+      },
+      data: {
+        couponPromotionId: promotion.id,
       },
     });
 
