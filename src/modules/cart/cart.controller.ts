@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -26,6 +27,7 @@ import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CartService } from './cart.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
+import { ApplyCartCouponDto } from './dto/apply-cart-coupon.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
 interface AuthenticatedRequest extends Request {
@@ -53,6 +55,23 @@ export class CartController {
     return this.cartService.getMyCart(request.user.id);
   }
 
+  @ApiOperation({
+    summary: 'Menerapkan coupon pada cart',
+  })
+  @ApiOkResponse({
+    description: 'Coupon berhasil diterapkan dan ringkasan cart diperbarui',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Coupon tidak valid, tidak aktif, cart kosong, atau persyarakan coupon belum terpenuhi',
+  })
+  @Put('coupon')
+  applyCoupon(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: ApplyCartCouponDto,
+  ) {
+    return this.cartService.applyCoupon(request.user.id, dto);
+  }
   @ApiOperation({
     summary: 'Menambahkan item ke cart',
   })
