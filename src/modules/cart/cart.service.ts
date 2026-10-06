@@ -134,6 +134,14 @@ export class CartService {
       };
     }
 
+    const quantityByVariant = cart.items.reduce((quantities, item) => {
+      const currentQuantity = quantities.get(item.variantId) ?? 0;
+
+      quantities.set(item.variantId, currentQuantity + item.quantity);
+
+      return quantities;
+    }, new Map<string, number>());
+
     const items = cart.items.map((item) => {
       const unitPrice = Number(item.variant.price);
       const lineTotal = unitPrice * item.quantity;
@@ -145,8 +153,10 @@ export class CartService {
       const isVariantAvailable =
         item.variant.isActive && item.variant.deletedAt === null;
 
+      const totalVariantQuantity = quantityByVariant.get(item.variantId) ?? 0;
+
       const hasEnoughStock =
-        !item.variant.trackStock || item.variant.stock >= item.quantity;
+        !item.variant.trackStock || item.variant.stock >= totalVariantQuantity;
 
       const isAvailable =
         isProductAvailable && isVariantAvailable && hasEnoughStock;
