@@ -22,6 +22,24 @@ export class CartService {
         userId,
       },
       include: {
+        couponPromotion: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            discountType: true,
+            discountValue: true,
+            maximumDiscount: true,
+            minimumOrderAmount: true,
+            minimumQuantity: true,
+            scope: true,
+            startsAt: true,
+            endsAt: true,
+            isStackable: true,
+            isActive: true,
+            deletedAt: true,
+          },
+        },
         items: {
           orderBy: {
             createdAt: 'asc',
@@ -55,6 +73,7 @@ export class CartService {
       return {
         id: null,
         userId,
+        coupon: null,
         items: [],
         summary: {
           totalItems: 0,
@@ -120,6 +139,30 @@ export class CartService {
     return {
       id: cart.id,
       userId: cart.userId,
+      coupon: cart.couponPromotion
+        ? {
+            id: cart.couponPromotion.id,
+            name: cart.couponPromotion.name,
+            code: cart.couponPromotion.code,
+            discountType: cart.couponPromotion.discountType,
+            discountValue: Number(cart.couponPromotion.discountValue),
+            maximumDiscount:
+              cart.couponPromotion.maximumDiscount === null
+                ? null
+                : Number(cart.couponPromotion.maximumDiscount),
+            minimumOrderAmount:
+              cart.couponPromotion.minimumOrderAmount === null
+                ? null
+                : Number(cart.couponPromotion.minimumOrderAmount),
+            minimumQuantity: cart.couponPromotion.minimumQuantity,
+            scope: cart.couponPromotion.scope,
+            startsAt: cart.couponPromotion.startsAt,
+            endsAt: cart.couponPromotion.endsAt,
+            isStackable: cart.couponPromotion.isStackable,
+            isActive: cart.couponPromotion.isActive,
+            deletedAt: cart.couponPromotion.deletedAt,
+          }
+        : null,
       items,
       summary: {
         totalItems: items.length,

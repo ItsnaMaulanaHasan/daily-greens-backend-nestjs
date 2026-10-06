@@ -76,6 +76,7 @@ describe('CartService', () => {
     await expect(service.getMyCart(userId)).resolves.toEqual({
       id: null,
       userId,
+      coupon: null,
       items: [],
       summary: {
         totalItems: 0,
@@ -95,6 +96,7 @@ describe('CartService', () => {
     cartFindUniqueMock.mockResolvedValue({
       id: cartId,
       userId,
+      couponPromotion: null,
       items: [
         {
           id: itemId,
@@ -127,6 +129,7 @@ describe('CartService', () => {
     await expect(service.getMyCart(userId)).resolves.toEqual({
       id: cartId,
       userId,
+      coupon: null,
       items: [
         {
           id: itemId,
