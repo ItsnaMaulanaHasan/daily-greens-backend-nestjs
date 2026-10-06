@@ -4,13 +4,47 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  DiscountType,
   ProductStatus,
   PromotionApplicationType,
+  PromotionScope,
 } from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { ApplyCartCouponDto } from './dto/apply-cart-coupon.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
+
+interface CartPromotionItem {
+  categoryId: string;
+  productId: string;
+  variantId: string;
+  quantity: number;
+  lineTotal: number;
+  isAvailable: boolean;
+}
+
+interface CartPromotionRule {
+  discountType: DiscountType;
+  discountValue: number;
+  maximumDiscount: number | null;
+  minimumOrderAmount: number | null;
+  minimumQuantity: number | null;
+  scope: PromotionScope;
+  startsAt: Date;
+  endsAt: Date;
+  isActive: boolean;
+  deletedAt: Date | null;
+  categoryIds: string[];
+  productIds: string[];
+  variantIds: string[];
+}
+
+interface CartPromotionCalculation {
+  isEligible: boolean;
+  ineligibleReason: string | null;
+  eligibleSubtotal: number;
+  discountAmount: number;
+}
 
 @Injectable()
 export class CartService {
@@ -38,6 +72,21 @@ export class CartService {
             isStackable: true,
             isActive: true,
             deletedAt: true,
+            categoryTargets: {
+              select: {
+                categoryId: true,
+              },
+            },
+            productTargets: {
+              select: {
+                productId: true,
+              },
+            },
+            variantTargets: {
+              select: {
+                variantId: true,
+              },
+            },
           },
         },
         items: {
@@ -79,6 +128,8 @@ export class CartService {
           totalItems: 0,
           totalQuantity: 0,
           subtotal: 0,
+          discount: 0,
+          grandTotal: 0,
         },
       };
     }
@@ -136,6 +187,64 @@ export class CartService {
       };
     });
 
+    const subtotal = items.reduce((total, item) => total + item.lineTotal, 0);
+
+    const totalQuantity = items.reduce(
+      (total, item) => total + item.quantity,
+      0,
+    );
+
+    const promotionItems: CartPromotionItem[] = cart.items.map(
+      (item, index) => ({
+        categoryId: item.variant.product.categoryId,
+        productId: item.variant.product.id,
+        variantId: item.variant.id,
+        quantity: item.quantity,
+        lineTotal: items[index].lineTotal,
+        isAvailable: items[index].isAvailable,
+      }),
+    );
+
+    const couponCalculation = cart.couponPromotion
+      ? this.calculatePromotion(
+          {
+            discountType: cart.couponPromotion.discountType,
+            discountValue: Number(cart.couponPromotion.discountValue),
+            maximumDiscount:
+              cart.couponPromotion.maximumDiscount === null
+                ? null
+                : Number(cart.couponPromotion.maximumDiscount),
+            minimumOrderAmount:
+              cart.couponPromotion.minimumOrderAmount === null
+                ? null
+                : Number(cart.couponPromotion.minimumOrderAmount),
+            minimumQuantity: cart.couponPromotion.minimumQuantity,
+            scope: cart.couponPromotion.scope,
+            startsAt: cart.couponPromotion.startsAt,
+            endsAt: cart.couponPromotion.endsAt,
+            isActive: cart.couponPromotion.isActive,
+            deletedAt: cart.couponPromotion.deletedAt,
+            categoryIds: cart.couponPromotion.categoryTargets.map(
+              (target) => target.categoryId,
+            ),
+            productIds: cart.couponPromotion.productTargets.map(
+              (target) => target.productId,
+            ),
+            variantIds: cart.couponPromotion.variantTargets.map(
+              (target) => target.variantId,
+            ),
+          },
+          promotionItems,
+        )
+      : null;
+
+    const discount =
+      couponCalculation?.isEligible === true
+        ? couponCalculation.discountAmount
+        : 0;
+
+    const grandTotal = Math.max(0, subtotal - discount);
+
     return {
       id: cart.id,
       userId: cart.userId,
@@ -161,13 +270,19 @@ export class CartService {
             isStackable: cart.couponPromotion.isStackable,
             isActive: cart.couponPromotion.isActive,
             deletedAt: cart.couponPromotion.deletedAt,
+            isEligible: couponCalculation?.isEligible ?? false,
+            ineligibleReason: couponCalculation?.ineligibleReason ?? null,
+            eligibleSubtotal: couponCalculation?.eligibleSubtotal ?? 0,
+            discounAmount: couponCalculation?.discountAmount ?? 0,
           }
         : null,
       items,
       summary: {
         totalItems: items.length,
-        totalQuantity: items.reduce((total, item) => total + item.quantity, 0),
-        subtotal: items.reduce((total, item) => total + item.lineTotal, 0),
+        totalQuantity,
+        subtotal,
+        discount,
+        grandTotal,
       },
     };
   }
@@ -528,5 +643,114 @@ export class CartService {
     });
 
     return this.getMyCart(userId);
+  }
+
+  private calculatePromotion(
+    promotion: CartPromotionRule,
+    items: CartPromotionItem[],
+  ): CartPromotionCalculation {
+    const unavailableResult = (reason: string): CartPromotionCalculation => ({
+      isEligible: false,
+      ineligibleReason: reason,
+      eligibleSubtotal: 0,
+      discountAmount: 0,
+    });
+
+    const now = new Date();
+
+    if (!promotion.isActive || promotion.deletedAt !== null) {
+      return unavailableResult('Coupon is inactive');
+    }
+
+    if (now < promotion.startsAt) {
+      return unavailableResult('Coupon has not started');
+    }
+
+    if (now > promotion.endsAt) {
+      return unavailableResult('Coupon has expired');
+    }
+
+    const availableItems = items.filter((item) => item.isAvailable);
+
+    if (availableItems.length === 0) {
+      return unavailableResult('Cart has no available items');
+    }
+
+    const availableSubtotal = availableItems.reduce(
+      (total, item) => total + item.lineTotal,
+      0,
+    );
+
+    const availableQuantity = availableItems.reduce(
+      (total, item) => total + item.quantity,
+      0,
+    );
+
+    if (
+      promotion.minimumOrderAmount !== null &&
+      availableSubtotal < promotion.minimumOrderAmount
+    ) {
+      return unavailableResult(
+        `Minimum order amount is ${promotion.minimumOrderAmount}`,
+      );
+    }
+
+    if (
+      promotion.minimumQuantity !== null &&
+      availableQuantity < promotion.minimumQuantity
+    ) {
+      return unavailableResult(
+        `Minimum quantity is ${promotion.minimumQuantity}`,
+      );
+    }
+
+    const categoryIds = new Set(promotion.categoryIds);
+    const productIds = new Set(promotion.productIds);
+    const variantIds = new Set(promotion.variantIds);
+
+    const eligibleItems = availableItems.filter((item) => {
+      switch (promotion.scope) {
+        case PromotionScope.ALL_PRODUCTS:
+          return true;
+        case PromotionScope.CATEGORY:
+          return categoryIds.has(item.categoryId);
+        case PromotionScope.PRODUCT:
+          return productIds.has(item.productId);
+        case PromotionScope.VARIANT:
+          return variantIds.has(item.variantId);
+        default:
+          return false;
+      }
+    });
+
+    if (eligibleItems.length === 0) {
+      return unavailableResult('Coupon does not apply to items in this cart');
+    }
+
+    const eligibleSubtotal = eligibleItems.reduce(
+      (total, item) => total + item.lineTotal,
+      0,
+    );
+
+    let discountAmount: number;
+
+    if (promotion.discountType === DiscountType.PERCENTAGE) {
+      discountAmount = eligibleSubtotal * (promotion.discountValue / 100);
+
+      if (promotion.maximumDiscount !== null) {
+        discountAmount = Math.min(discountAmount, promotion.maximumDiscount);
+      }
+    } else {
+      discountAmount = Math.min(promotion.discountValue, eligibleSubtotal);
+    }
+
+    discountAmount = Math.round(discountAmount * 100) / 100;
+
+    return {
+      isEligible: true,
+      ineligibleReason: null,
+      eligibleSubtotal,
+      discountAmount,
+    };
   }
 }

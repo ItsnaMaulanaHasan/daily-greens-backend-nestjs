@@ -82,6 +82,8 @@ describe('CartService', () => {
         totalItems: 0,
         totalQuantity: 0,
         subtotal: 0,
+        discount: 0,
+        grandTotal: 0,
       },
     });
   });
@@ -160,6 +162,8 @@ describe('CartService', () => {
         totalItems: 1,
         totalQuantity: 2,
         subtotal: 50000,
+        discount: 0,
+        grandTotal: 50000,
       },
     });
   });
