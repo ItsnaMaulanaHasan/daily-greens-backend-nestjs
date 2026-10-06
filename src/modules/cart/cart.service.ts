@@ -589,6 +589,31 @@ export class CartService {
       },
       select: {
         id: true,
+        discountType: true,
+        discountValue: true,
+        maximumDiscount: true,
+        minimumOrderAmount: true,
+        minimumQuantity: true,
+        scope: true,
+        startsAt: true,
+        endsAt: true,
+        isActive: true,
+        deletedAt: true,
+        categoryTargets: {
+          select: {
+            categoryId: true,
+          },
+        },
+        productTargets: {
+          select: {
+            productId: true,
+          },
+        },
+        variantTargets: {
+          select: {
+            variantId: true,
+          },
+        },
       },
     });
 
@@ -602,17 +627,100 @@ export class CartService {
       },
       select: {
         id: true,
-        _count: {
+        items: {
           select: {
-            items: true,
+            quantity: true,
+            variantId: true,
+            variant: {
+              select: {
+                id: true,
+                price: true,
+                stock: true,
+                trackStock: true,
+                isActive: true,
+                deletedAt: true,
+                product: {
+                  select: {
+                    id: true,
+                    categoryId: true,
+                    status: true,
+                    deletedAt: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
     });
 
-    if (!cart || cart._count.items === 0) {
+    if (!cart || cart.items.length === 0) {
       throw new BadRequestException(
         'Coupon cannot be applied to an empty cart',
+      );
+    }
+
+    const quantityByVariant = cart.items.reduce((quantities, item) => {
+      const currentQuantity = quantities.get(item.variantId) ?? 0;
+
+      quantities.set(item.variantId, currentQuantity + item.quantity);
+
+      return quantities;
+    }, new Map<string, number>());
+
+    const promotionItems: CartPromotionItem[] = cart.items.map((item) => {
+      const totalVariantQuantity = quantityByVariant.get(item.variantId) ?? 0;
+
+      const isProductAvailable =
+        item.variant.product.status === ProductStatus.ACTIVE &&
+        item.variant.product.deletedAt === null;
+
+      const isVariantAvailable =
+        item.variant.isActive && item.variant.deletedAt === null;
+
+      const hasEnoughStock =
+        !item.variant.trackStock || item.variant.stock >= totalVariantQuantity;
+
+      return {
+        categoryId: item.variant.product.categoryId,
+        productId: item.variant.product.id,
+        variantId: item.variant.id,
+        quantity: item.quantity,
+        lineTotal: Number(item.variant.price) * item.quantity,
+        isAvailable: isProductAvailable && isVariantAvailable && hasEnoughStock,
+      };
+    });
+
+    const calculation = this.calculatePromotion(
+      {
+        discountType: promotion.discountType,
+        discountValue: Number(promotion.discountValue),
+        maximumDiscount:
+          promotion.maximumDiscount === null
+            ? null
+            : Number(promotion.maximumDiscount),
+        minimumOrderAmount:
+          promotion.minimumOrderAmount === null
+            ? null
+            : Number(promotion.minimumOrderAmount),
+        minimumQuantity: promotion.minimumQuantity,
+        scope: promotion.scope,
+        startsAt: promotion.startsAt,
+        endsAt: promotion.endsAt,
+        isActive: promotion.isActive,
+        deletedAt: promotion.deletedAt,
+        categoryIds: promotion.categoryTargets.map(
+          (target) => target.categoryId,
+        ),
+        productIds: promotion.productTargets.map((target) => target.productId),
+        variantIds: promotion.variantTargets.map((target) => target.variantId),
+      },
+      promotionItems,
+    );
+
+    if (!calculation.isEligible) {
+      throw new BadRequestException(
+        calculation.ineligibleReason ?? 'Coupon cannot be applied to this cart',
       );
     }
 
