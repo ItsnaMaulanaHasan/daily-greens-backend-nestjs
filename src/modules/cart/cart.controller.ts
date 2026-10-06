@@ -72,6 +72,7 @@ export class CartController {
   ) {
     return this.cartService.applyCoupon(request.user.id, dto);
   }
+
   @ApiOperation({
     summary: 'Menambahkan item ke cart',
   })
@@ -88,6 +89,17 @@ export class CartController {
   @Post('items')
   addItem(@Req() request: AuthenticatedRequest, @Body() dto: AddCartItemDto) {
     return this.cartService.addItem(request.user.id, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Melepas coupon dari cart',
+  })
+  @ApiOkResponse({
+    description: 'Coupon berhasil dilepas dan ringkasan cart diperbarui',
+  })
+  @Delete('coupon')
+  removeCoupon(@Req() request: AuthenticatedRequest) {
+    return this.cartService.removeCoupon(request.user.id);
   }
 
   @ApiOperation({
