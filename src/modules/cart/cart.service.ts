@@ -283,7 +283,7 @@ export class CartService {
             isEligible: couponCalculation?.isEligible ?? false,
             ineligibleReason: couponCalculation?.ineligibleReason ?? null,
             eligibleSubtotal: couponCalculation?.eligibleSubtotal ?? 0,
-            discounAmount: couponCalculation?.discountAmount ?? 0,
+            discountAmount: couponCalculation?.discountAmount ?? 0,
           }
         : null,
       items,
