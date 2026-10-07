@@ -17,6 +17,8 @@ describe('CartService', () => {
   const cartItemDeleteMock = jest.fn();
   const cartItemDeleteManyMock = jest.fn();
 
+  const promotionFindManyMock = jest.fn();
+
   const productVariantFindUniqueMock = jest.fn();
   const transactionMock = jest.fn();
 
@@ -31,6 +33,9 @@ describe('CartService', () => {
     cartItemDeleteMock.mockReset();
     cartItemDeleteManyMock.mockReset();
 
+    promotionFindManyMock.mockReset();
+    promotionFindManyMock.mockResolvedValue([]);
+
     productVariantFindUniqueMock.mockReset();
     transactionMock.mockReset();
 
@@ -43,6 +48,9 @@ describe('CartService', () => {
             cart: {
               findUnique: cartFindUniqueMock,
               upsert: cartUpsertMock,
+            },
+            promotion: {
+              findMany: promotionFindManyMock,
             },
             cartItem: {
               findFirst: cartItemFindFirstMock,
@@ -77,6 +85,7 @@ describe('CartService', () => {
       id: null,
       userId,
       coupon: null,
+      automaticPromotions: [],
       items: [],
       summary: {
         totalItems: 0,
@@ -132,6 +141,7 @@ describe('CartService', () => {
       id: cartId,
       userId,
       coupon: null,
+      automaticPromotions: [],
       items: [
         {
           id: itemId,

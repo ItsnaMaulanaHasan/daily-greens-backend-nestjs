@@ -123,6 +123,7 @@ export class CartService {
         id: null,
         userId,
         coupon: null,
+        automaticPromotions: [],
         items: [],
         summary: {
           totalItems: 0,
@@ -248,10 +249,145 @@ export class CartService {
         )
       : null;
 
-    const discount =
+    const now = new Date();
+
+    const automaticPromotions = await this.prisma.promotion.findMany({
+      where: {
+        applicationType: PromotionApplicationType.AUTOMATIC,
+        isActive: true,
+        deletedAt: null,
+        startsAt: {
+          lte: now,
+        },
+        endsAt: {
+          gte: now,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        discountType: true,
+        discountValue: true,
+        maximumDiscount: true,
+        minimumOrderAmount: true,
+        minimumQuantity: true,
+        scope: true,
+        startsAt: true,
+        endsAt: true,
+        priority: true,
+        isStackable: true,
+        isActive: true,
+        deletedAt: true,
+        categoryTargets: {
+          select: {
+            categoryId: true,
+          },
+        },
+        productTargets: {
+          select: {
+            productId: true,
+          },
+        },
+        variantTargets: {
+          select: {
+            variantId: true,
+          },
+        },
+      },
+      orderBy: [
+        {
+          priority: 'desc',
+        },
+        {
+          createdAt: 'asc',
+        },
+      ],
+    });
+
+    const calculatedAutomaticPromotions = automaticPromotions.map(
+      (promotion) => {
+        const calculation = this.calculatePromotion(
+          {
+            discountType: promotion.discountType,
+            discountValue: Number(promotion.discountValue),
+            maximumDiscount:
+              promotion.maximumDiscount === null
+                ? null
+                : Number(promotion.maximumDiscount),
+            minimumOrderAmount:
+              promotion.minimumOrderAmount === null
+                ? null
+                : Number(promotion.minimumOrderAmount),
+            minimumQuantity: promotion.minimumQuantity,
+            scope: promotion.scope,
+            startsAt: promotion.startsAt,
+            endsAt: promotion.endsAt,
+            isActive: promotion.isActive,
+            deletedAt: promotion.deletedAt,
+            categoryIds: promotion.categoryTargets.map(
+              (target) => target.categoryId,
+            ),
+            productIds: promotion.productTargets.map(
+              (target) => target.productId,
+            ),
+            variantIds: promotion.variantTargets.map(
+              (target) => target.variantId,
+            ),
+          },
+          promotionItems,
+        );
+
+        return {
+          id: promotion.id,
+          name: promotion.name,
+          discountType: promotion.discountType,
+          discountValue: Number(promotion.discountValue),
+          scope: promotion.scope,
+          priority: promotion.priority,
+          isStackable: promotion.isStackable,
+          isEligible: calculation.isEligible,
+          eligibleSubtotal: calculation.eligibleSubtotal,
+          discountAmount: calculation.discountAmount,
+        };
+      },
+    );
+
+    const eligibleAutomaticPromotions = calculatedAutomaticPromotions.filter(
+      (promotion) => promotion.isEligible,
+    );
+
+    const couponDiscount =
       couponCalculation?.isEligible === true
         ? couponCalculation.discountAmount
         : 0;
+
+    let appliedAutomaticPromotions: typeof eligibleAutomaticPromotions = [];
+
+    if (couponCalculation?.isEligible === true && cart.couponPromotion) {
+      if (cart.couponPromotion.isStackable) {
+        appliedAutomaticPromotions = eligibleAutomaticPromotions.filter(
+          (promotion) => promotion.isStackable,
+        );
+      }
+    } else if (eligibleAutomaticPromotions.length > 0) {
+      const [primaryPromotion, ...otherPromotions] =
+        eligibleAutomaticPromotions;
+
+      appliedAutomaticPromotions = [primaryPromotion];
+
+      if (primaryPromotion.isStackable) {
+        appliedAutomaticPromotions.push(
+          ...otherPromotions.filter((promotion) => promotion.isStackable),
+        );
+      }
+    }
+
+    const automaticDiscount = appliedAutomaticPromotions.reduce(
+      (total, promotion) => total + promotion.discountAmount,
+      0,
+    );
+
+    const discount = Math.min(subtotal, couponDiscount + automaticDiscount);
 
     const grandTotal = Math.max(0, subtotal - discount);
 
@@ -286,6 +422,17 @@ export class CartService {
             discountAmount: couponCalculation?.discountAmount ?? 0,
           }
         : null,
+      automaticPromotions: appliedAutomaticPromotions.map((promotion) => ({
+        id: promotion.id,
+        name: promotion.name,
+        discountType: promotion.discountType,
+        discountValue: promotion.discountValue,
+        scope: promotion.scope,
+        priority: promotion.priority,
+        isStackable: promotion.isStackable,
+        eligibleSubtotal: promotion.eligibleSubtotal,
+        discountAmount: promotion.discountAmount,
+      })),
       items,
       summary: {
         totalItems: items.length,
