@@ -946,26 +946,12 @@ export class CartService {
       0,
     );
 
-    const availableQuantity = availableItems.reduce(
-      (total, item) => total + item.quantity,
-      0,
-    );
-
     if (
       promotion.minimumOrderAmount !== null &&
       availableSubtotal < promotion.minimumOrderAmount
     ) {
       return unavailableResult(
         `Minimum order amount is ${promotion.minimumOrderAmount}`,
-      );
-    }
-
-    if (
-      promotion.minimumQuantity !== null &&
-      availableQuantity < promotion.minimumQuantity
-    ) {
-      return unavailableResult(
-        `Minimum quantity is ${promotion.minimumQuantity}`,
       );
     }
 
@@ -996,6 +982,20 @@ export class CartService {
       (total, item) => total + item.lineTotal,
       0,
     );
+
+    const eligibleQuantity = eligibleItems.reduce(
+      (total, item) => total + item.quantity,
+      0,
+    );
+
+    if (
+      promotion.minimumQuantity !== null &&
+      eligibleQuantity < promotion.minimumQuantity
+    ) {
+      return unavailableResult(
+        `Minimum quantity is ${promotion.minimumQuantity}`,
+      );
+    }
 
     let discountAmount: number;
 

@@ -63,7 +63,7 @@ export class CartController {
   })
   @ApiBadRequestResponse({
     description:
-      'Coupon tidak valid, tidak aktif, cart kosong, atau persyarakan coupon belum terpenuhi',
+      'Coupon tidak valid, tidak aktif, cart kosong, atau persyaratan coupon belum terpenuhi',
   })
   @Put('coupon')
   applyCoupon(

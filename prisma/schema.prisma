@@ -89,7 +89,7 @@ model User {
   updatedByUser User?    @relation("UserUpdatedBy", fields: [updatedBy], references: [id])
   deletedByUser User?    @relation("UserDeletedBy", fields: [deletedBy], references: [id])
 
-  // relations audit colom
+  // audit column relations
   // user
   usersCreated User[] @relation("UserCreatedBy")
   usersUpdated User[] @relation("UserUpdatedBy")
