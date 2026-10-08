@@ -573,12 +573,29 @@ model OrderItem {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
   // relations
-  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
-  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  order   Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant ProductVariant?   @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  options OrderItemOption[]
 
   @@index([orderId])
   @@index([productId])
   @@index([variantId])
   @@map("order_items")
+}
+
+model OrderItemOption {
+  id          String @id @default(uuid()) @db.Uuid
+  orderItemId String @map("order_item_id") @db.Uuid
+
+  optionName  String @map("option_name") @db.VarChar(100)
+  optionValue String @map("option_value") @db.VarChar(100)
+  position    Int    @default(0)
+
+  // relations
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@unique([orderItemId, optionName])
+  @@index([orderItemId, position])
+  @@map("order_item_options")
 }
