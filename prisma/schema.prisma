@@ -431,6 +431,7 @@ model Promotion {
   productTargets  PromotionProduct[]
   variantTargets  PromotionVariant[]
   couponCarts     Cart[]              @relation("CartCouponPromotion")
+  orderPromotions OrderPromotion[]
 
   @@index([isActive, startsAt, endsAt])
   @@index([scope])
@@ -545,8 +546,9 @@ model Order {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   // relations
-  user  User        @relation(fields: [userId], references: [id], onDelete: Restrict)
-  items OrderItem[]
+  user       User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items      OrderItem[]
+  promotions OrderPromotion[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -598,4 +600,34 @@ model OrderItemOption {
   @@unique([orderItemId, optionName])
   @@index([orderItemId, position])
   @@map("order_item_options")
+}
+
+model OrderPromotion {
+  id          String  @id @default(uuid()) @db.Uuid
+  orderId     String  @map("order_id") @db.Uuid
+  promotionId String? @map("promotion_id") @db.Uuid
+
+  promotionName   String                   @map("promotion_name") @db.VarChar(255)
+  promotionCode   String?                  @map("promotion_code") @db.VarChar(100)
+  applicationType PromotionApplicationType @map("application_type")
+  discountType    DiscountType             @map("discount_type")
+  scope           PromotionScope
+
+  discountValue    Decimal @map("discount_value") @db.Decimal(12, 2)
+  eligibleSubtotal Decimal @map("eligible_subtotal") @db.Decimal(12, 2)
+  discountAmount   Decimal @map("discount_amount") @db.Decimal(12, 2)
+
+  priority    Int
+  isStackable Boolean @map("is_stackable")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // relations
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  promotion Promotion? @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId, promotionId])
+  @@index([orderId])
+  @@index([promotionId])
+  @@map("order_promotions")
 }
