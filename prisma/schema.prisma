@@ -258,6 +258,7 @@ model Product {
   options          ProductOption[]
   variants         ProductVariant[]
   promotionTargets PromotionProduct[]
+  orderItems       OrderItem[]
 
   @@index([categoryId, status])
   @@index([status, position])
@@ -347,6 +348,7 @@ model ProductVariant {
   stockMovements   StockMovement[]
   promotionTargets PromotionVariant[]
   cartItems        CartItem[]
+  orderItems       OrderItem[]
 
   @@index([productId, isActive])
   @@index([productId, isDefault])
@@ -543,10 +545,40 @@ model Order {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   // relations
-  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items OrderItem[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([paymentStatus])
   @@map("orders")
+}
+
+model OrderItem {
+  id        String @id @default(uuid()) @db.Uuid
+  orderId   String @map("order_id") @db.Uuid
+  productId String @map("product_id") @db.Uuid
+  variantId String @map("variant_id") @db.Uuid
+
+  productName String @map("product_name") @db.VarChar(255)
+  variantName String @map("variant_name") @db.VarChar(255)
+  sku         String @db.VarChar(100)
+
+  unitPrice Decimal @map("unit_price") @db.Decimal(12, 2)
+  quantity  Int
+  lineTotal Decimal @map("line_total") @db.Decimal(12, 2)
+
+  customerNote String? @map("cutomer_note") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // relations
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+  @@map("order_items")
 }
