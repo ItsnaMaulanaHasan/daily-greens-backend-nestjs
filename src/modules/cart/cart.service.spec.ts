@@ -417,4 +417,70 @@ describe('CartService', () => {
       },
     });
   });
+
+  it('Should not apply automatic promotions when an aligible coupon is not stackable', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    cartFindUniqueMock.mockResolvedValue({
+      ...createCartWithSingleItem(),
+      couponPromotion: {
+        id: '99999999-9999-4999-8999-999999999999',
+        name: 'Coupon Dua Puluh Persen',
+        code: 'CART20',
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: 20,
+        maximumDiscount: null,
+        minimumOrderAmount: null,
+        minimumQuantity: null,
+        scope: PromotionScope.ALL_PRODUCTS,
+        startsAt: new Date('2020-01-01T00:00:00.000Z'),
+        endsAt: new Date('2099-12-31T23:59:59.000Z'),
+        isStackable: false,
+        isActive: false,
+        deletedAt: true,
+        categoryTargets: [],
+        productTargets: [],
+        variantTargets: [],
+      },
+    });
+
+    promotionFindManyMock.mockResolvedValue([
+      {
+        id: '77777777-7777-4777-8777-777777777777',
+        name: 'Promotion Otomatis',
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: 5000,
+        maximumDiscount: null,
+        minimumOrderAmount: null,
+        minimumQuantity: null,
+        scope: PromotionScope.ALL_PRODUCTS,
+        startsAt: new Date('2020-01-01T00:00:00.000Z'),
+        endsAt: new Date('2099-12-31T23:59:59.000Z'),
+        priority: 10,
+        isStackable: true,
+        isActive: true,
+        deletedAt: null,
+        categoryTargets: [],
+        productTargets: [],
+        variantTargets: [],
+      },
+    ]);
+
+    const result = await service.getMyCart(userId);
+
+    expect(result).toMatchObject({
+      coupon: {
+        id: '99999999-9999-4999-8999-999999999999',
+        code: 'CART20',
+        isEligible: true,
+        discountAmount: 10000,
+      },
+      automaticPromotions: [],
+      summary: {
+        subtotal: 50000,
+        discount: 10000,
+        grandTotal: 40000,
+      },
+    });
+  });
 });
