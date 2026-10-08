@@ -9,6 +9,8 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PromotionModule } from './modules/promotions/promotion.module';
 import { UsersModule } from './modules/users/users.module';
 import { CartModule } from './modules/cart/cart.module';
+import { OrdersModule } from './module/orders/orders.module';
+import { OrdersController } from './modules/orders/orders.controller';
 
 @Module({
   imports: [
@@ -22,8 +24,9 @@ import { CartModule } from './modules/cart/cart.module';
     ProductModule,
     PromotionModule,
     CartModule,
+    OrdersModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, OrdersController],
   providers: [AppService],
 })
 export class AppModule {}
