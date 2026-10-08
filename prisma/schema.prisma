@@ -72,11 +72,11 @@ enum OrderStatus {
   READY
   OUT_FOR_DELIVERY
   COMPLETED
-  CANCELED
+  CANCELLED
 }
 
 enum OrderType {
-  DEVLIVERY
+  DELIVERY
   PICKUP
   DINE_IN
 }
@@ -583,7 +583,7 @@ model OrderItem {
   quantity  Int
   lineTotal Decimal @map("line_total") @db.Decimal(12, 2)
 
-  customerNote String? @map("cutomer_note") @db.Text
+  customerNote String? @map("customer_note") @db.Text
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -650,7 +650,7 @@ model OrderStatusHistory {
   orderId String @map("order_id") @db.Uuid
 
   fromStatus OrderStatus? @map("from_status")
-  toStatus   OrderStatus? @map("to_status")
+  toStatus   OrderStatus  @map("to_status")
 
   note String? @db.Text
 
@@ -682,7 +682,7 @@ model Payment {
 
   expiresAt DateTime? @map("expires_at") @db.Timestamptz()
   paidAt    DateTime? @map("paid_at") @db.Timestamptz()
-  failedAt  DateTime  @map("failed_at") @db.Timestamptz()
+  failedAt  DateTime? @map("failed_at") @db.Timestamptz()
 
   metadata Json?
 
