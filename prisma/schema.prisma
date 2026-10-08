@@ -137,6 +137,9 @@ model User {
   // promotion
   promotionsCreated Promotion[] @relation("PromotionCreatedBy")
 
+  // order status history
+  orderStatusChanges OrderStatusHistory[] @relation("OrderStatusChangedBy")
+
   @@index([roleId])
   @@map("users")
 }
@@ -546,9 +549,10 @@ model Order {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   // relations
-  user       User             @relation(fields: [userId], references: [id], onDelete: Restrict)
-  items      OrderItem[]
-  promotions OrderPromotion[]
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  items           OrderItem[]
+  promotions      OrderPromotion[]
+  statusHistories OrderStatusHistory[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -630,4 +634,25 @@ model OrderPromotion {
   @@index([orderId])
   @@index([promotionId])
   @@map("order_promotions")
+}
+
+model OrderStatusHistory {
+  id      String @id @default(uuid()) @db.Uuid
+  orderId String @map("order_id") @db.Uuid
+
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus? @map("to_status")
+
+  note String? @db.Text
+
+  changedBy String?  @map("changed_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // relations
+  order         Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  changedByUser User? @relation("OrderStatusChangedBy", fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@index([changedBy])
+  @@map("order_status_histories")
 }
