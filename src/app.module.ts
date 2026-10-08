@@ -4,15 +4,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CartModule } from './modules/cart/cart.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { ProductModule } from './modules/products/product.module';
 import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PromotionModule } from './modules/promotions/promotion.module';
 import { UsersModule } from './modules/users/users.module';
-import { CartModule } from './modules/cart/cart.module';
-import { OrdersModule } from './module/orders/orders.module';
-import { OrdersController } from './modules/orders/orders.controller';
-import { OrdersService } from './modules/orders/orders.service';
-import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -28,7 +25,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     CartModule,
     OrdersModule,
   ],
-  controllers: [AppController, OrdersController],
-  providers: [AppService, OrdersService],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}
