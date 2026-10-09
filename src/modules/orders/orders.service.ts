@@ -1,14 +1,43 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from 'generated/prisma/client';
 import {
+  DiscountType,
   OrderType,
   PaymentMethod,
   ProductStatus,
+  PromotionApplicationType,
+  PromotionScope,
 } from 'generated/prisma/enums';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { PromotionCalculationService } from '../promotions/promotion-calculator.service';
+import {
+  PromotionCalculationItem,
+  PromotionCalculationService,
+} from '../promotions/promotion-calculator.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+
+interface AppliedCheckoutPromotion {
+  id: string;
+  name: string;
+  code: string | null;
+  applicationType: PromotionApplicationType;
+  discountType: DiscountType;
+  discountValue: number;
+  scope: PromotionScope;
+  priority: number;
+  isStackable: boolean;
+  eligibleSubtotal: number;
+  discountAmount: number;
+}
+
+interface CheckoutPricing {
+  subtotal: number;
+  discountAmount: number;
+  deliveryFee: number;
+  taxAmount: number;
+  totalAmount: number;
+  appliedPromotions: AppliedCheckoutPromotion[];
+}
 
 @Injectable()
 export class OrdersService {
@@ -162,6 +191,286 @@ export class OrdersService {
     }
 
     return cart;
+  }
+
+  private async calculateCheckoutPricing(
+    transaction: Prisma.TransactionClient,
+    cart: Awaited<ReturnType<OrdersService['getValidatedCheckoutCart']>>,
+  ): Promise<CheckoutPricing> {
+    const promotionItems: PromotionCalculationItem[] = cart.items.map(
+      (item) => ({
+        categoryId: item.variant.product.categoryId,
+        productId: item.variant.product.id,
+        variantId: item.variant.id,
+        quantity: item.quantity,
+        lineTotal: Number(item.variant.price) * item.quantity,
+        isAvailable: true,
+      }),
+    );
+
+    const subtotal = promotionItems.reduce(
+      (total, item) => total + item.lineTotal,
+      0,
+    );
+
+    const couponCalculatiion = cart.couponPromotion
+      ? this.promotionCalculator.calculate(
+          {
+            discountType: cart.couponPromotion.discountType,
+            discountValue: Number(cart.couponPromotion.discountValue),
+            maximumDiscount:
+              cart.couponPromotion.maximumDiscount === null
+                ? null
+                : Number(cart.couponPromotion.maximumDiscount),
+            minimumOrderAmount:
+              cart.couponPromotion.minimumOrderAmount === null
+                ? null
+                : Number(cart.couponPromotion.minimumOrderAmount),
+            minimumQuantity: cart.couponPromotion.minimumQuantity,
+            scope: cart.couponPromotion.scope,
+            startsAt: cart.couponPromotion.startsAt,
+            endsAt: cart.couponPromotion.endsAt,
+            isActive: cart.couponPromotion.isActive,
+            deletedAt: cart.couponPromotion.deletedAt,
+            categoryIds: cart.couponPromotion.categoryTargets.map(
+              (target) => target.categoryId,
+            ),
+            productIds: cart.couponPromotion.productTargets.map(
+              (target) => target.productId,
+            ),
+            variantIds: cart.couponPromotion.variantTargets.map(
+              (target) => target.variantId,
+            ),
+          },
+          promotionItems,
+        )
+      : null;
+
+    if (cart.couponPromotion && couponCalculatiion?.isEligible !== true) {
+      throw new BadRequestException(
+        `Applied coupon is no longer valid: ${
+          couponCalculatiion?.ineligibleReason ?? 'unknown reason'
+        }`,
+      );
+    }
+
+    const now = new Date();
+
+    const automaticPromotions = await transaction.promotion.findMany({
+      where: {
+        applicationType: PromotionApplicationType.AUTOMATIC,
+        isActive: true,
+        deletedAt: null,
+        startsAt: {
+          lte: now,
+        },
+        endsAt: {
+          gte: now,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        applicationType: true,
+        discountType: true,
+        discountValue: true,
+        maximumDiscount: true,
+        minimumOrderAmount: true,
+        minimumQuantity: true,
+        scope: true,
+        startsAt: true,
+        endsAt: true,
+        priority: true,
+        isStackable: true,
+        isActive: true,
+        deletedAt: true,
+        categoryTargets: {
+          select: {
+            categoryId: true,
+          },
+        },
+        productTargets: {
+          select: {
+            productId: true,
+          },
+        },
+        variantTargets: {
+          select: {
+            variantId: true,
+          },
+        },
+      },
+      orderBy: [
+        {
+          priority: 'desc',
+        },
+        {
+          createdAt: 'asc',
+        },
+      ],
+    });
+
+    const eligibleAutomaticPromotions = automaticPromotions
+      .map((promotion) => {
+        const calculation = this.promotionCalculator.calculate(
+          {
+            discountType: promotion.discountType,
+            discountValue: Number(promotion.discountValue),
+            maximumDiscount:
+              promotion.maximumDiscount === null
+                ? null
+                : Number(promotion.maximumDiscount),
+            minimumOrderAmount:
+              promotion.minimumOrderAmount === null
+                ? null
+                : Number(promotion.minimumOrderAmount),
+            minimumQuantity: promotion.minimumQuantity,
+            scope: promotion.scope,
+            startsAt: promotion.startsAt,
+            endsAt: promotion.endsAt,
+            isActive: promotion.isActive,
+            deletedAt: promotion.deletedAt,
+            categoryIds: promotion.categoryTargets.map(
+              (target) => target.categoryId,
+            ),
+            productIds: promotion.productTargets.map(
+              (target) => target.productId,
+            ),
+            variantIds: promotion.variantTargets.map(
+              (target) => target.variantId,
+            ),
+          },
+          promotionItems,
+        );
+
+        return {
+          id: promotion.id,
+          name: promotion.name,
+          code: promotion.code,
+          applicationType: promotion.applicationType,
+          discountType: promotion.discountType,
+          discountValue: Number(promotion.discountValue),
+          scope: promotion.scope,
+          priority: promotion.priority,
+          isStackable: promotion.isStackable,
+          isEligible: calculation.isEligible,
+          eligibleSubtotal: calculation.eligibleSubtotal,
+          discountAmount: calculation.discountAmount,
+        };
+      })
+      .filter((promotion) => promotion.isEligible);
+
+    let selectedAutomaticPromotions: typeof eligibleAutomaticPromotions = [];
+
+    if (cart.couponPromotion && couponCalculatiion?.isEligible === true) {
+      if (cart.couponPromotion.isStackable) {
+        selectedAutomaticPromotions = eligibleAutomaticPromotions.filter(
+          (promotion) => promotion.isStackable,
+        );
+      }
+    } else if (eligibleAutomaticPromotions.length > 0) {
+      const [primaryPromotion, ...otherPromotions] =
+        eligibleAutomaticPromotions;
+
+      selectedAutomaticPromotions = [primaryPromotion];
+
+      if (primaryPromotion.isStackable) {
+        selectedAutomaticPromotions.push(
+          ...otherPromotions.filter((promotion) => promotion.isStackable),
+        );
+      }
+    }
+
+    const selectedPromotions: Array<
+      Omit<AppliedCheckoutPromotion, 'discountAmount'> & {
+        calculatedDiscountAmount: number;
+      }
+    > = [];
+
+    if (cart.couponPromotion && couponCalculatiion?.isEligible === true) {
+      selectedPromotions.push({
+        id: cart.couponPromotion.id,
+        name: cart.couponPromotion.name,
+        code: cart.couponPromotion.code,
+        applicationType: cart.couponPromotion.applicationType,
+        discountType: cart.couponPromotion.discountType,
+        discountValue: Number(cart.couponPromotion.discountValue),
+        scope: cart.couponPromotion.scope,
+        priority: cart.couponPromotion.priority,
+        isStackable: cart.couponPromotion.isStackable,
+        eligibleSubtotal: couponCalculatiion.eligibleSubtotal,
+        calculatedDiscountAmount: couponCalculatiion.discountAmount,
+      });
+    }
+
+    selectedPromotions.push(
+      ...selectedAutomaticPromotions.map((promotion) => ({
+        id: promotion.id,
+        name: promotion.name,
+        code: promotion.code,
+        applicationType: promotion.applicationType,
+        discountType: promotion.discountType,
+        discountValue: promotion.discountValue,
+        scope: promotion.scope,
+        priority: promotion.priority,
+        isStackable: promotion.isStackable,
+        eligibleSubtotal: promotion.eligibleSubtotal,
+        calculatedDiscountAmount: promotion.discountAmount,
+      })),
+    );
+
+    let accumulatedDiscount = 0;
+
+    const appliedPromotions: AppliedCheckoutPromotion[] = [];
+
+    for (const promotion of selectedPromotions) {
+      const remainingAmount = Math.max(0, subtotal - accumulatedDiscount);
+
+      const discountAmount = Math.min(
+        promotion.calculatedDiscountAmount,
+        remainingAmount,
+      );
+
+      if (discountAmount <= 0) {
+        continue;
+      }
+
+      accumulatedDiscount += discountAmount;
+
+      appliedPromotions.push({
+        id: promotion.id,
+        name: promotion.name,
+        code: promotion.code,
+        applicationType: promotion.applicationType,
+        discountType: promotion.discountType,
+        discountValue: promotion.discountValue,
+        scope: promotion.scope,
+        priority: promotion.priority,
+        isStackable: promotion.isStackable,
+        eligibleSubtotal: promotion.eligibleSubtotal,
+        discountAmount,
+      });
+    }
+
+    const discountAmount = Math.round(accumulatedDiscount * 100) / 100;
+
+    const deliveryFee = 0;
+    const taxAmount = 0;
+
+    const totalAmount = Math.max(
+      0,
+      subtotal - discountAmount + deliveryFee + taxAmount,
+    );
+
+    return {
+      subtotal,
+      discountAmount,
+      deliveryFee,
+      taxAmount,
+      totalAmount,
+      appliedPromotions,
+    };
   }
 
   private validateCheckoutRequest(dto: CreateOrderDto): string | null {
