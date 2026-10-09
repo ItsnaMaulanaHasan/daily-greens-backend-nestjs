@@ -8,5 +8,6 @@ import { PromotionService } from './promotion.service';
   imports: [AuthModule],
   controllers: [PromotionController],
   providers: [PromotionService, PromotionCalculationService],
+  exports: [PromotionCalculationService],
 })
 export class PromotionModule {}

@@ -1,17 +1,21 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { randomBytes } from 'crypto';
 import { Prisma } from 'generated/prisma/client';
 import {
   OrderType,
   PaymentMethod,
   ProductStatus,
 } from 'generated/prisma/enums';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { PromotionCalculationService } from '../promotions/promotion-calculator.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly promotionCalculator: PromotionCalculationService,
+  ) {}
 
   private async getValidatedCheckoutCart(
     transaction: Prisma.TransactionClient,
@@ -129,7 +133,7 @@ export class OrdersService {
         product.deletedAt !== null
       ) {
         throw new BadRequestException(
-          `Product variant "${product.name}" is unavailable`,
+          `Product "${product.name}" is unavailable`,
         );
       }
 
@@ -181,7 +185,7 @@ export class OrdersService {
   }
 
   private generateOrderNumber(): string {
-    const timestamp = new Date().toISOString().replace(/\D/g, '').toUpperCase();
+    const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
 
     const randomPart = randomBytes(3).toString('hex').toUpperCase();
 
