@@ -6,6 +6,7 @@ import {
   PromotionScope,
 } from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { PromotionCalculationService } from '../promotions/promotion-calculator.service';
 import { CartService } from './cart.service';
 
 describe('CartService', () => {
@@ -81,6 +82,7 @@ describe('CartService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CartService,
+        PromotionCalculationService,
         {
           provide: PrismaService,
           useValue: {

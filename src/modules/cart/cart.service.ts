@@ -4,51 +4,24 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
-  DiscountType,
   ProductStatus,
   PromotionApplicationType,
-  PromotionScope,
 } from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import {
+  PromotionCalculationItem,
+  PromotionCalculationService,
+} from '../promotions/promotion-calculator.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { ApplyCartCouponDto } from './dto/apply-cart-coupon.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
-interface CartPromotionItem {
-  categoryId: string;
-  productId: string;
-  variantId: string;
-  quantity: number;
-  lineTotal: number;
-  isAvailable: boolean;
-}
-
-interface CartPromotionRule {
-  discountType: DiscountType;
-  discountValue: number;
-  maximumDiscount: number | null;
-  minimumOrderAmount: number | null;
-  minimumQuantity: number | null;
-  scope: PromotionScope;
-  startsAt: Date;
-  endsAt: Date;
-  isActive: boolean;
-  deletedAt: Date | null;
-  categoryIds: string[];
-  productIds: string[];
-  variantIds: string[];
-}
-
-interface CartPromotionCalculation {
-  isEligible: boolean;
-  ineligibleReason: string | null;
-  eligibleSubtotal: number;
-  discountAmount: number;
-}
-
 @Injectable()
 export class CartService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly promotionCalculator: PromotionCalculationService,
+  ) {}
 
   async getMyCart(userId: string) {
     const cart = await this.prisma.cart.findUnique({
@@ -205,7 +178,7 @@ export class CartService {
       0,
     );
 
-    const promotionItems: CartPromotionItem[] = cart.items.map(
+    const promotionItems: PromotionCalculationItem[] = cart.items.map(
       (item, index) => ({
         categoryId: item.variant.product.categoryId,
         productId: item.variant.product.id,
@@ -217,7 +190,7 @@ export class CartService {
     );
 
     const couponCalculation = cart.couponPromotion
-      ? this.calculatePromotion(
+      ? this.promotionCalculator.calculate(
           {
             discountType: cart.couponPromotion.discountType,
             discountValue: Number(cart.couponPromotion.discountValue),
@@ -306,7 +279,7 @@ export class CartService {
 
     const calculatedAutomaticPromotions = automaticPromotions.map(
       (promotion) => {
-        const calculation = this.calculatePromotion(
+        const calculation = this.promotionCalculator.calculate(
           {
             discountType: promotion.discountType,
             discountValue: Number(promotion.discountValue),
@@ -815,30 +788,34 @@ export class CartService {
       return quantities;
     }, new Map<string, number>());
 
-    const promotionItems: CartPromotionItem[] = cart.items.map((item) => {
-      const totalVariantQuantity = quantityByVariant.get(item.variantId) ?? 0;
+    const promotionItems: PromotionCalculationItem[] = cart.items.map(
+      (item) => {
+        const totalVariantQuantity = quantityByVariant.get(item.variantId) ?? 0;
 
-      const isProductAvailable =
-        item.variant.product.status === ProductStatus.ACTIVE &&
-        item.variant.product.deletedAt === null;
+        const isProductAvailable =
+          item.variant.product.status === ProductStatus.ACTIVE &&
+          item.variant.product.deletedAt === null;
 
-      const isVariantAvailable =
-        item.variant.isActive && item.variant.deletedAt === null;
+        const isVariantAvailable =
+          item.variant.isActive && item.variant.deletedAt === null;
 
-      const hasEnoughStock =
-        !item.variant.trackStock || item.variant.stock >= totalVariantQuantity;
+        const hasEnoughStock =
+          !item.variant.trackStock ||
+          item.variant.stock >= totalVariantQuantity;
 
-      return {
-        categoryId: item.variant.product.categoryId,
-        productId: item.variant.product.id,
-        variantId: item.variant.id,
-        quantity: item.quantity,
-        lineTotal: Number(item.variant.price) * item.quantity,
-        isAvailable: isProductAvailable && isVariantAvailable && hasEnoughStock,
-      };
-    });
+        return {
+          categoryId: item.variant.product.categoryId,
+          productId: item.variant.product.id,
+          variantId: item.variant.id,
+          quantity: item.quantity,
+          lineTotal: Number(item.variant.price) * item.quantity,
+          isAvailable:
+            isProductAvailable && isVariantAvailable && hasEnoughStock,
+        };
+      },
+    );
 
-    const calculation = this.calculatePromotion(
+    const calculation = this.promotionCalculator.calculate(
       {
         discountType: promotion.discountType,
         discountValue: Number(promotion.discountValue),
@@ -908,114 +885,5 @@ export class CartService {
     });
 
     return this.getMyCart(userId);
-  }
-
-  private calculatePromotion(
-    promotion: CartPromotionRule,
-    items: CartPromotionItem[],
-  ): CartPromotionCalculation {
-    const unavailableResult = (reason: string): CartPromotionCalculation => ({
-      isEligible: false,
-      ineligibleReason: reason,
-      eligibleSubtotal: 0,
-      discountAmount: 0,
-    });
-
-    const now = new Date();
-
-    if (!promotion.isActive || promotion.deletedAt !== null) {
-      return unavailableResult('Coupon is inactive');
-    }
-
-    if (now < promotion.startsAt) {
-      return unavailableResult('Coupon has not started');
-    }
-
-    if (now > promotion.endsAt) {
-      return unavailableResult('Coupon has expired');
-    }
-
-    const availableItems = items.filter((item) => item.isAvailable);
-
-    if (availableItems.length === 0) {
-      return unavailableResult('Cart has no available items');
-    }
-
-    const availableSubtotal = availableItems.reduce(
-      (total, item) => total + item.lineTotal,
-      0,
-    );
-
-    if (
-      promotion.minimumOrderAmount !== null &&
-      availableSubtotal < promotion.minimumOrderAmount
-    ) {
-      return unavailableResult(
-        `Minimum order amount is ${promotion.minimumOrderAmount}`,
-      );
-    }
-
-    const categoryIds = new Set(promotion.categoryIds);
-    const productIds = new Set(promotion.productIds);
-    const variantIds = new Set(promotion.variantIds);
-
-    const eligibleItems = availableItems.filter((item) => {
-      switch (promotion.scope) {
-        case PromotionScope.ALL_PRODUCTS:
-          return true;
-        case PromotionScope.CATEGORY:
-          return categoryIds.has(item.categoryId);
-        case PromotionScope.PRODUCT:
-          return productIds.has(item.productId);
-        case PromotionScope.VARIANT:
-          return variantIds.has(item.variantId);
-        default:
-          return false;
-      }
-    });
-
-    if (eligibleItems.length === 0) {
-      return unavailableResult('Coupon does not apply to items in this cart');
-    }
-
-    const eligibleSubtotal = eligibleItems.reduce(
-      (total, item) => total + item.lineTotal,
-      0,
-    );
-
-    const eligibleQuantity = eligibleItems.reduce(
-      (total, item) => total + item.quantity,
-      0,
-    );
-
-    if (
-      promotion.minimumQuantity !== null &&
-      eligibleQuantity < promotion.minimumQuantity
-    ) {
-      return unavailableResult(
-        `Minimum quantity is ${promotion.minimumQuantity}`,
-      );
-    }
-
-    let discountAmount: number;
-
-    if (promotion.discountType === DiscountType.PERCENTAGE) {
-      discountAmount = eligibleSubtotal * (promotion.discountValue / 100);
-
-      if (promotion.maximumDiscount !== null) {
-        discountAmount = Math.min(discountAmount, promotion.maximumDiscount);
-      }
-    } else {
-      discountAmount = Math.min(promotion.discountValue, eligibleSubtotal);
-    }
-
-    discountAmount = Math.round(discountAmount * 100) / 100;
-
-    return {
-      isEligible: true,
-      ineligibleReason: null,
-      eligibleSubtotal,
-      discountAmount,
-    };
   }
 }
