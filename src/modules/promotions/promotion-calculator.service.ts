@@ -76,7 +76,7 @@ export class PromotionCalculationService {
       availableSubtotal < promotion.minimumOrderAmount
     ) {
       return unavailableResult(
-        `Minimum order aomunt is ${promotion.minimumOrderAmount}`,
+        `Minimum order amount is ${promotion.minimumOrderAmount}`,
       );
     }
 
