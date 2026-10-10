@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from 'generated/prisma/client';
 import {
   DiscountType,
+  OrderStatus,
   OrderType,
   PaymentMethod,
   ProductStatus,
@@ -471,6 +472,103 @@ export class OrdersService {
       totalAmount,
       appliedPromotions,
     };
+  }
+
+  private async validatePromotionUsage(
+    transaction: Prisma.TransactionClient,
+    userId: string,
+    promotionIds: string[],
+  ): Promise<void> {
+    if (promotionIds.length === 0) {
+      return;
+    }
+
+    const uniquePromotionIds = [...new Set(promotionIds)];
+
+    const promotions = await transaction.promotion.findMany({
+      where: {
+        id: {
+          in: uniquePromotionIds,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        usageLimit: true,
+        usageLimitPerUser: true,
+      },
+    });
+
+    if (promotions.length !== uniquePromotionIds.length) {
+      throw new BadRequestException(
+        'One or more promotions are no longer available',
+      );
+    }
+
+    const [totalUsageRows, userUsageRows] = await Promise.all([
+      transaction.orderPromotion.groupBy({
+        by: ['promotionId'],
+        where: {
+          promotionId: {
+            in: uniquePromotionIds,
+          },
+          order: {
+            status: {
+              not: OrderStatus.CANCELLED,
+            },
+          },
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+      transaction.orderPromotion.groupBy({
+        by: ['promotionId'],
+        where: {
+          promotionId: {
+            in: uniquePromotionIds,
+          },
+          order: {
+            userId,
+            status: {
+              not: OrderStatus.CANCELLED,
+            },
+          },
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+    ]);
+
+    const totalUsageByPromotion = new Map(
+      totalUsageRows.map((usage) => [usage.promotionId, usage._count._all]),
+    );
+
+    const userUsageByPromotion = new Map(
+      userUsageRows.map((usage) => [usage.promotionId, usage._count._all]),
+    );
+
+    for (const promotion of promotions) {
+      const totalUsage = totalUsageByPromotion.get(promotion.id) ?? 0;
+
+      const userUsage = userUsageByPromotion.get(promotion.id) ?? 0;
+
+      if (promotion.usageLimit !== null && totalUsage >= promotion.usageLimit) {
+        throw new BadRequestException(
+          `Promotion "${promotion.name}" has reached its usage limit`,
+        );
+      }
+
+      if (
+        promotion.usageLimitPerUser !== null &&
+        userUsage >= promotion.usageLimitPerUser
+      ) {
+        throw new BadRequestException(
+          `You have reached the usage limit for promotion "${promotion.name}"`,
+        );
+      }
+    }
   }
 
   private validateCheckoutRequest(dto: CreateOrderDto): string | null {
