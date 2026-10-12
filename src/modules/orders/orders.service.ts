@@ -221,7 +221,7 @@ export class OrdersService {
                 stockAfter: adjustment.stockBefore - adjustment.quantity,
                 referenceType: 'ORDER',
                 referenceId: order.id,
-                note: `Stock reduce for order ${order.orderNumber}`,
+                note: `Stock reduced for order ${order.orderNumber}`,
                 createdBy: userId,
               },
             });
@@ -420,7 +420,7 @@ export class OrdersService {
       0,
     );
 
-    const couponCalculatiion = cart.couponPromotion
+    const couponCalculation = cart.couponPromotion
       ? this.promotionCalculator.calculate(
           {
             discountType: cart.couponPromotion.discountType,
@@ -453,10 +453,10 @@ export class OrdersService {
         )
       : null;
 
-    if (cart.couponPromotion && couponCalculatiion?.isEligible !== true) {
+    if (cart.couponPromotion && couponCalculation?.isEligible !== true) {
       throw new BadRequestException(
         `Applied coupon is no longer valid: ${
-          couponCalculatiion?.ineligibleReason ?? 'unknown reason'
+          couponCalculation?.ineligibleReason ?? 'unknown reason'
         }`,
       );
     }
@@ -570,7 +570,7 @@ export class OrdersService {
 
     let selectedAutomaticPromotions: typeof eligibleAutomaticPromotions = [];
 
-    if (cart.couponPromotion && couponCalculatiion?.isEligible === true) {
+    if (cart.couponPromotion && couponCalculation?.isEligible === true) {
       if (cart.couponPromotion.isStackable) {
         selectedAutomaticPromotions = eligibleAutomaticPromotions.filter(
           (promotion) => promotion.isStackable,
@@ -595,7 +595,7 @@ export class OrdersService {
       }
     > = [];
 
-    if (cart.couponPromotion && couponCalculatiion?.isEligible === true) {
+    if (cart.couponPromotion && couponCalculation?.isEligible === true) {
       selectedPromotions.push({
         id: cart.couponPromotion.id,
         name: cart.couponPromotion.name,
@@ -606,8 +606,8 @@ export class OrdersService {
         scope: cart.couponPromotion.scope,
         priority: cart.couponPromotion.priority,
         isStackable: cart.couponPromotion.isStackable,
-        eligibleSubtotal: couponCalculatiion.eligibleSubtotal,
-        calculatedDiscountAmount: couponCalculatiion.discountAmount,
+        eligibleSubtotal: couponCalculation.eligibleSubtotal,
+        calculatedDiscountAmount: couponCalculation.discountAmount,
       });
     }
 
