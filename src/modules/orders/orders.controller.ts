@@ -21,12 +21,12 @@ interface AuthenticatedRequest extends Request {
 @ApiBearerAuth('access-token')
 @ApiUnauthorizedResponse({
   description:
-    'Access token tidak tersedia, tidak valid, atau sudah kadaluwarsa',
+    'Access token tidak tersedia, tidak valid, atau sudah kedaluwarsa',
 })
 @Controller('orders')
 @UseGuards(JwtAuthGuard)
 export class OrdersController {
-  constructor(private readonly orderService: OrdersService) {}
+  constructor(private readonly ordersService: OrdersService) {}
 
   @ApiOperation({
     summary: 'Membuat order dari cart user',
@@ -34,14 +34,14 @@ export class OrdersController {
       'Memvalidasi cart, menghitung ulang promo, membuat order, mengurangi stok, dan mengosongkan cart',
   })
   @ApiCreatedResponse({
-    description: 'Ordeer berhasil dibuat',
+    description: 'Order berhasil dibuat',
   })
   @ApiBadRequestResponse({
     description:
-      'Cart kosong, produk tidak tersedia, stock tidak mencukupi, promo tidak valid, atau data checkout tidak sesuai',
+      'Cart kosong, produk tidak tersedia, stok tidak mencukupi, promo tidak valid, atau data checkout tidak sesuai',
   })
   @Post('checkout')
   checkout(@Req() request: AuthenticatedRequest, @Body() dto: CreateOrderDto) {
-    return this.orderService.checkout(request.user.id, dto);
+    return this.ordersService.checkout(request.user.id, dto);
   }
 }
