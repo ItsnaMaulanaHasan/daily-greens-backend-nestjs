@@ -17,6 +17,7 @@ import {
   PromotionCalculationService,
 } from '../promotions/promotion-calculator.service';
 import { CreateOrderDto } from './dto/create-order.dto';
+import { OrderQueryDto } from './dto/order-query.dto';
 
 interface AppliedCheckoutPromotion {
   id: string;
@@ -251,6 +252,91 @@ export class OrdersService {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+  }
+
+  async getMyOrders(userId: string, query: OrderQueryDto) {
+    const skip = (query.page - 1) * query.limit;
+
+    const where: Prisma.OrderWhereInput = {
+      userId,
+      ...(query.status
+        ? {
+            status: query.status,
+          }
+        : {}),
+      ...(query.orderType
+        ? {
+            orderType: query.orderType,
+          }
+        : {}),
+    };
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          orderType: true,
+          paymentStatus: true,
+          subtotal: true,
+          discountAmount: true,
+          deliveryFee: true,
+          taxAmount: true,
+          totalAmount: true,
+          createdAt: true,
+          updatedAt: true,
+
+          items: {
+            take: 3,
+            orderBy: {
+              createdAt: 'asc',
+            },
+            select: {
+              id: true,
+              productName: true,
+              variantName: true,
+              quantity: true,
+            },
+          },
+
+          _count: {
+            select: {
+              items: true,
+            },
+          },
+        },
+      }),
+
+      this.prisma.order.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: orders.map(({ _count, items, ...order }) => ({
+        ...order,
+        subtotal: Number(order.subtotal),
+        discountAmount: Number(order.discountAmount),
+        deliveryFee: Number(order.deliveryFee),
+        taxAmount: Number(order.taxAmount),
+        totalAmount: Number(order.totalAmount),
+        totalLineItems: _count.items,
+        itemsPreview: items,
+      })),
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   private async getValidatedCheckoutCart(
