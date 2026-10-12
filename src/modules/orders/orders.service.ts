@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from 'generated/prisma/client';
 import {
   DiscountType,
@@ -336,6 +340,163 @@ export class OrdersService {
         total,
         totalPages: Math.ceil(total / query.limit),
       },
+    };
+  }
+
+  async getMyOrderById(userId: string, orderId: string) {
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        userId,
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        orderType: true,
+        paymentStatus: true,
+
+        customerName: true,
+        customerPhone: true,
+        customerNote: true,
+        deliveryAddress: true,
+
+        subtotal: true,
+        discountAmount: true,
+        deliveryFee: true,
+        taxAmount: true,
+        totalAmount: true,
+
+        confirmedAt: true,
+        completedAt: true,
+        cancelledAt: true,
+        cancellationReason: true,
+        createdAt: true,
+        updatedAt: true,
+
+        items: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+          select: {
+            id: true,
+            productId: true,
+            variantId: true,
+            productName: true,
+            variantName: true,
+            sku: true,
+            unitPrice: true,
+            quantity: true,
+            lineTotal: true,
+            customerNote: true,
+            createdAt: true,
+
+            options: {
+              orderBy: {
+                position: 'asc',
+              },
+              select: {
+                id: true,
+                optionName: true,
+                optionValue: true,
+                position: true,
+              },
+            },
+          },
+        },
+
+        promotions: {
+          orderBy: [
+            {
+              priority: 'desc',
+            },
+            {
+              createdAt: 'asc',
+            },
+          ],
+          select: {
+            id: true,
+            promotionId: true,
+            promotionName: true,
+            promotionCode: true,
+            applicationType: true,
+            discountType: true,
+            scope: true,
+            discountValue: true,
+            eligibleSubtotal: true,
+            discountAmount: true,
+            priority: true,
+            isStackable: true,
+            createdAt: true,
+          },
+        },
+
+        payments: {
+          orderBy: {
+            createdAt: 'desc',
+          },
+          select: {
+            id: true,
+            method: true,
+            status: true,
+            amount: true,
+            refundedAmount: true,
+            provider: true,
+            providerReference: true,
+            paymentUrl: true,
+            expiresAt: true,
+            paidAt: true,
+            failedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+
+        statusHistories: {
+          orderBy: {
+            createdAt: 'asc',
+          },
+          select: {
+            id: true,
+            fromStatus: true,
+            toStatus: true,
+            note: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    return {
+      ...order,
+      subtotal: Number(order.subtotal),
+      discountAmount: Number(order.discountAmount),
+      deliveryFee: Number(order.deliveryFee),
+      taxAmount: Number(order.taxAmount),
+      totalAmount: Number(order.totalAmount),
+
+      items: order.items.map((item) => ({
+        ...item,
+        unitPrice: Number(item.unitPrice),
+        lineTotal: Number(item.lineTotal),
+      })),
+
+      promotions: order.promotions.map((promotion) => ({
+        ...promotion,
+        discountValue: Number(promotion.discountValue),
+        eligibleSubtotal: Number(promotion.eligibleSubtotal),
+        discountAmount: Number(promotion.discountAmount),
+      })),
+
+      payments: order.payments.map((payment) => ({
+        ...payment,
+        amount: Number(payment.amount),
+        refundedAmount: Number(payment.refundedAmount),
+      })),
     };
   }
 
