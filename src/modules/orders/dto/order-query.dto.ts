@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
-import { OrderStatus } from 'generated/prisma/enums';
+import { OrderStatus, OrderType } from 'generated/prisma/enums';
 
 export class OrderQueryDto {
   @ApiPropertyOptional({
@@ -12,6 +12,15 @@ export class OrderQueryDto {
   @IsOptional()
   @IsEnum(OrderStatus)
   status?: OrderStatus;
+
+  @ApiPropertyOptional({
+    enum: OrderType,
+    example: OrderType.DELIVERY,
+    description: 'Filter berdasarkan jenis order',
+  })
+  @IsOptional()
+  @IsEnum(OrderType)
+  orderType?: OrderType;
 
   @ApiPropertyOptional({
     example: 1,
