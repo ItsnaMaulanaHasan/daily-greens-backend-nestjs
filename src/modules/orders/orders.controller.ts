@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -11,8 +13,10 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -69,5 +73,30 @@ export class OrdersController {
     @Query() query: OrderQueryDto,
   ) {
     return this.ordersService.getMyOrders(request.user.id, query);
+  }
+
+  @ApiOperation({
+    summary: 'Mengambil detail order milik user',
+    description:
+      'Mengambil detail order beserta item, pilihan produk, promosi, pembayaran, dan riwayat status',
+  })
+  @ApiParam({
+    name: 'orderId',
+    description: 'UUID order',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Detail order berhasil diambil',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'Order tidak ditemukan atau bukan milik user yang sedang login',
+  })
+  @Get(':orderId')
+  getMyOrderById(
+    @Req() request: AuthenticatedRequest,
+    @Param('orderId', new ParseUUIDPipe()) orderId: string,
+  ) {
+    return this.ordersService.getMyOrderById(request.user.id, orderId);
   }
 }
