@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrderStatus, OrderType, PaymentStatus } from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -13,12 +13,29 @@ describe('OrdersService', () => {
   const orderFindManyMock = jest.fn();
   const orderCountMock = jest.fn();
   const promotionCalculateMock = jest.fn();
+  const transactionMock = jest.fn();
 
   beforeEach(async () => {
     orderFindFirstMock.mockReset();
     orderFindManyMock.mockReset();
     orderCountMock.mockReset();
     promotionCalculateMock.mockReset();
+    transactionMock.mockReset();
+
+    transactionMock.mockImplementation(
+      async (
+        callback: (transaction: {
+          order: {
+            findFirst: typeof orderFindFirstMock;
+          };
+        }) => Promise<unknown>,
+      ) =>
+        callback({
+          order: {
+            findFirst: orderFindFirstMock,
+          },
+        }),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -31,6 +48,7 @@ describe('OrdersService', () => {
               findMany: orderFindManyMock,
               count: orderCountMock,
             },
+            $transaction: transactionMock,
           },
         },
         {
@@ -256,5 +274,35 @@ describe('OrdersService', () => {
         },
       }),
     );
+  });
+
+  it('should reject cancellation when order is not pending', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    const orderId = '22222222-2222-4222-8222-222222222222';
+
+    orderFindFirstMock.mockResolvedValue({
+      id: orderId,
+      orderNumber: 'DG-20261013080000-ABC123',
+      status: OrderStatus.CONFIRMED,
+    });
+
+    await expect(
+      service.cancelMyOrder(userId, orderId, {
+        reason: 'Saya ingin membatalkan pesanan ini',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(orderFindFirstMock).toHaveBeenCalledWith({
+      where: {
+        id: orderId,
+        userId,
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+      },
+    });
   });
 });
