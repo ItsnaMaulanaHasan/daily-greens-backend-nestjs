@@ -507,4 +507,35 @@ describe('OrdersService', () => {
       cancellationReason: reason,
     });
   });
+
+  it('should reject an unsupported payment method', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    await expect(
+      service.checkout(userId, {
+        orderType: OrderType.DELIVERY,
+        paymentMethod: PaymentMethod.QRIS,
+        customerName: 'Itsna Maulana',
+        customerPhone: '081234567890',
+        deliveryAddress: 'Jl. Merdeka No. 10',
+      }),
+    ).rejects.toThrow('Only CASH payment is currently available');
+
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it('should require an address for delivery order', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    await expect(
+      service.checkout(userId, {
+        orderType: OrderType.DELIVERY,
+        paymentMethod: PaymentMethod.CASH,
+        customerName: 'Itsna Maulana',
+        customerPhone: '081234567890',
+      }),
+    ).rejects.toThrow('Delivery address is required for delivery orders');
+
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
 });
