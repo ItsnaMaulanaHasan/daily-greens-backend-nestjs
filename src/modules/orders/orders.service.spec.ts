@@ -1,6 +1,11 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { OrderStatus, OrderType, PaymentStatus } from 'generated/prisma/enums';
+import {
+  OrderStatus,
+  OrderType,
+  PaymentStatus,
+  StockMovementType,
+} from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { PromotionCalculationService } from '../promotions/promotion-calculator.service';
 import { OrderQueryDto } from './dto/order-query.dto';
@@ -15,6 +20,12 @@ describe('OrdersService', () => {
   const promotionCalculateMock = jest.fn();
   const transactionMock = jest.fn();
 
+  const orderUpdateManyMock = jest.fn();
+  const stockMovementFindManyMock = jest.fn();
+  const stockMovementCreateMock = jest.fn();
+  const productVariantUpdateMock = jest.fn();
+  const orderStatusHistoryCreateMock = jest.fn();
+
   beforeEach(async () => {
     orderFindFirstMock.mockReset();
     orderFindManyMock.mockReset();
@@ -22,17 +33,45 @@ describe('OrdersService', () => {
     promotionCalculateMock.mockReset();
     transactionMock.mockReset();
 
+    orderUpdateManyMock.mockReset();
+    stockMovementFindManyMock.mockReset();
+    stockMovementCreateMock.mockReset();
+    productVariantUpdateMock.mockReset();
+    orderStatusHistoryCreateMock.mockReset();
+
     transactionMock.mockImplementation(
       async (
         callback: (transaction: {
           order: {
             findFirst: typeof orderFindFirstMock;
+            updateMany: typeof orderUpdateManyMock;
+          };
+          stockMovement: {
+            findMany: typeof stockMovementFindManyMock;
+            create: typeof stockMovementCreateMock;
+          };
+          productVariant: {
+            update: typeof productVariantUpdateMock;
+          };
+          orderStatusHistory: {
+            create: typeof orderStatusHistoryCreateMock;
           };
         }) => Promise<unknown>,
       ) =>
         callback({
           order: {
             findFirst: orderFindFirstMock,
+            updateMany: orderUpdateManyMock,
+          },
+          stockMovement: {
+            findMany: stockMovementFindManyMock,
+            create: stockMovementCreateMock,
+          },
+          productVariant: {
+            update: productVariantUpdateMock,
+          },
+          orderStatusHistory: {
+            create: orderStatusHistoryCreateMock,
           },
         }),
     );
@@ -303,6 +342,127 @@ describe('OrdersService', () => {
         orderNumber: true,
         status: true,
       },
+    });
+  });
+
+  it('should cancel a pending order and restore its stock', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    const orderId = '22222222-2222-4222-8222-222222222222';
+
+    const variantId = '33333333-3333-4333-8333-333333333333';
+
+    const reason = 'Saya salah memilih alamat pengiriman';
+
+    orderFindFirstMock
+      .mockResolvedValueOnce({
+        id: orderId,
+        orderNumber: 'DG-20261013080000-ABC123',
+        status: OrderStatus.PENDING,
+      })
+      .mockResolvedValueOnce({
+        id: orderId,
+        orderNumber: 'DG-20261013080000-ABC123',
+        status: OrderStatus.CANCELLED,
+        orderType: OrderType.DELIVERY,
+        paymentStatus: PaymentStatus.PENDING,
+        subtotal: 50000,
+        discountAmount: 0,
+        deliveryFee: 0,
+        taxAmount: 0,
+        totalAmount: 50000,
+        cancellationReason: reason,
+        items: [],
+        promotions: [],
+        payments: [],
+        statusHistories: [],
+      });
+
+    stockMovementFindManyMock.mockResolvedValue([
+      {
+        variantId,
+        quantityChange: -2,
+        variant: {
+          id: variantId,
+          name: 'Dingin - Large',
+          stock: 8,
+        },
+      },
+    ]);
+
+    orderUpdateManyMock.mockResolvedValue({
+      count: 1,
+    });
+
+    productVariantUpdateMock.mockResolvedValue({
+      id: variantId,
+      stock: 10,
+    });
+
+    stockMovementCreateMock.mockResolvedValue({
+      id: '44444444-4444-4444-8444-444444444444',
+    });
+
+    orderStatusHistoryCreateMock.mockResolvedValue({
+      id: '55555555-5555-4555-8555-555555555555',
+    });
+
+    const result = await service.cancelMyOrder(userId, orderId, {
+      reason,
+    });
+
+    expect(orderUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: orderId,
+        userId,
+        status: OrderStatus.PENDING,
+      },
+      data: {
+        status: OrderStatus.CANCELLED,
+        cancelledAt: expect.any(Date) as Date,
+        cancellationReason: reason,
+      },
+    });
+
+    expect(productVariantUpdateMock).toHaveBeenCalledWith({
+      where: {
+        id: variantId,
+      },
+      data: {
+        stock: {
+          increment: 2,
+        },
+      },
+    });
+
+    expect(stockMovementCreateMock).toHaveBeenCalledWith({
+      data: {
+        variantId,
+        type: StockMovementType.CANCELLATION,
+        quantityChange: 2,
+        stockBefore: 8,
+        stockAfter: 10,
+        referenceType: 'ORDER',
+        referenceId: orderId,
+        note: 'Stock restored because order DG-20261013080000-ABC123 was cancelled',
+        createdBy: userId,
+      },
+    });
+
+    expect(orderStatusHistoryCreateMock).toHaveBeenCalledWith({
+      data: {
+        orderId,
+        fromStatus: OrderStatus.PENDING,
+        toStatus: OrderStatus.CANCELLED,
+        note: reason,
+        changedBy: userId,
+      },
+    });
+
+    expect(result).toMatchObject({
+      id: orderId,
+      status: OrderStatus.CANCELLED,
+      cancellationReason: reason,
     });
   });
 });
