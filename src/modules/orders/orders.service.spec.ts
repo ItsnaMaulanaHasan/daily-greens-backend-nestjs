@@ -5,6 +5,7 @@ import {
   OrderType,
   PaymentMethod,
   PaymentStatus,
+  ProductStatus,
   StockMovementType,
 } from 'generated/prisma/enums';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -29,6 +30,12 @@ describe('OrdersService', () => {
 
   const cartFindUniqueMock = jest.fn();
 
+  const cartUpdateMock = jest.fn();
+  const cartItemDeleteManyMock = jest.fn();
+  const promotionFindManyMock = jest.fn();
+  const orderCreateMock = jest.fn();
+  const productVariantUpdateManyMock = jest.fn();
+
   beforeEach(async () => {
     orderFindFirstMock.mockReset();
     orderFindManyMock.mockReset();
@@ -44,14 +51,28 @@ describe('OrdersService', () => {
 
     cartFindUniqueMock.mockReset();
 
+    cartUpdateMock.mockReset();
+    cartItemDeleteManyMock.mockReset();
+    promotionFindManyMock.mockReset();
+    orderCreateMock.mockReset();
+    productVariantUpdateManyMock.mockReset();
+
     transactionMock.mockImplementation(
       async (
         callback: (transaction: {
           cart: {
             findUnique: typeof cartFindUniqueMock;
+            update: typeof cartUpdateMock;
+          };
+          cartItem: {
+            deleteMany: typeof cartItemDeleteManyMock;
+          };
+          promotion: {
+            findMany: typeof promotionFindManyMock;
           };
           order: {
             findFirst: typeof orderFindFirstMock;
+            create: typeof orderCreateMock;
             updateMany: typeof orderUpdateManyMock;
           };
           stockMovement: {
@@ -60,6 +81,7 @@ describe('OrdersService', () => {
           };
           productVariant: {
             update: typeof productVariantUpdateMock;
+            updateMany: typeof productVariantUpdateManyMock;
           };
           orderStatusHistory: {
             create: typeof orderStatusHistoryCreateMock;
@@ -69,9 +91,17 @@ describe('OrdersService', () => {
         callback({
           cart: {
             findUnique: cartFindUniqueMock,
+            update: cartUpdateMock,
+          },
+          cartItem: {
+            deleteMany: cartItemDeleteManyMock,
+          },
+          promotion: {
+            findMany: promotionFindManyMock,
           },
           order: {
             findFirst: orderFindFirstMock,
+            create: orderCreateMock,
             updateMany: orderUpdateManyMock,
           },
           stockMovement: {
@@ -80,6 +110,7 @@ describe('OrdersService', () => {
           },
           productVariant: {
             update: productVariantUpdateMock,
+            updateMany: productVariantUpdateManyMock,
           },
           orderStatusHistory: {
             create: orderStatusHistoryCreateMock,
@@ -298,7 +329,8 @@ describe('OrdersService', () => {
       statusHistories: [],
     });
 
-    const result = await service.getMyOrderById(userId, orderId);
+    const result: Awaited<ReturnType<OrdersService['getMyOrderById']>> =
+      await service.getMyOrderById(userId, orderId);
 
     expect(orderFindFirstMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -537,5 +569,147 @@ describe('OrdersService', () => {
     ).rejects.toThrow('Delivery address is required for delivery orders');
 
     expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it('should create an order, reduce stock, and clear the cart', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    const cartId = '22222222-2222-4222-8222-222222222222';
+
+    const orderId = '33333333-3333-4333-8333-333333333333';
+
+    const variantId = '44444444-4444-4444-8444-444444444444';
+
+    cartFindUniqueMock.mockResolvedValue({
+      id: cartId,
+      couponPromotion: null,
+      items: [
+        {
+          id: '55555555-5555-4555-8555-555555555555',
+          variantId,
+          quantity: 2,
+          note: null,
+          variant: {
+            id: variantId,
+            sku: 'KOPI-DINGIN-L',
+            name: 'Dingin - Large',
+            price: 25000,
+            stock: 10,
+            trackStock: true,
+            isActive: true,
+            deletedAt: null,
+            product: {
+              id: '66666666-6666-4666-8666-666666666666',
+              categoryId: '77777777-7777-4777-8777-777777777777',
+              name: 'Kopi Susu',
+              status: ProductStatus.ACTIVE,
+              deletedAt: null,
+              allowCustomerNote: true,
+            },
+            optionValues: [],
+          },
+        },
+      ],
+    });
+
+    promotionFindManyMock.mockResolvedValue([]);
+
+    orderCreateMock.mockResolvedValue({
+      id: orderId,
+      orderNumber: 'DG-20261013080000-ABC123',
+      status: OrderStatus.PENDING,
+    });
+
+    productVariantUpdateManyMock.mockResolvedValue({
+      count: 1,
+    });
+
+    stockMovementCreateMock.mockResolvedValue({
+      id: '88888888-8888-4888-8888-888888888888',
+    });
+
+    cartItemDeleteManyMock.mockResolvedValue({
+      count: 1,
+    });
+
+    cartUpdateMock.mockResolvedValue({
+      id: cartId,
+      couponPromotionId: null,
+    });
+
+    const result = await service.checkout(userId, {
+      orderType: OrderType.DELIVERY,
+      paymentMethod: PaymentMethod.CASH,
+      customerName: 'Itsna Maulana',
+      customerPhone: '081234567890',
+      deliveryAddress: 'Jl. Merdeka No. 10',
+    });
+
+    expect(orderCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId,
+          orderType: OrderType.DELIVERY,
+          customerName: 'Itsna Maulana',
+          customerPhone: '081234567890',
+          deliveryAddress: 'Jl. Merdeka No. 10',
+          subtotal: 50000,
+          discountAmount: 0,
+          deliveryFee: 0,
+          taxAmount: 0,
+          totalAmount: 50000,
+        }) as Record<string, unknown>,
+      }),
+    );
+
+    expect(productVariantUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: variantId,
+        trackStock: true,
+        stock: {
+          gte: 2,
+        },
+      },
+      data: {
+        stock: {
+          decrement: 2,
+        },
+      },
+    });
+
+    expect(stockMovementCreateMock).toHaveBeenCalledWith({
+      data: {
+        variantId,
+        type: StockMovementType.SALE,
+        quantityChange: -2,
+        stockBefore: 10,
+        stockAfter: 8,
+        referenceType: 'ORDER',
+        referenceId: orderId,
+        note: 'Stock reduced for order DG-20261013080000-ABC123',
+        createdBy: userId,
+      },
+    });
+
+    expect(cartItemDeleteManyMock).toHaveBeenCalledWith({
+      where: {
+        cartId,
+      },
+    });
+
+    expect(cartUpdateMock).toHaveBeenCalledWith({
+      where: {
+        id: cartId,
+      },
+      data: {
+        couponPromotionId: null,
+      },
+    });
+
+    expect(result).toEqual({
+      id: orderId,
+      orderNumber: 'DG-20261013080000-ABC123',
+      status: OrderStatus.PENDING,
+    });
   });
 });
