@@ -20,6 +20,7 @@ import {
   PromotionCalculationItem,
   PromotionCalculationService,
 } from '../promotions/promotion-calculator.service';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 
@@ -498,6 +499,120 @@ export class OrdersService {
         refundedAmount: Number(payment.refundedAmount),
       })),
     };
+  }
+
+  async cancelMyOrder(userId: string, orderId: string, dto: CancelOrderDto) {
+    await this.prisma.$transaction(
+      async (transaction) => {
+        const order = await transaction.order.findFirst({
+          where: {
+            id: orderId,
+            userId,
+          },
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+          },
+        });
+
+        if (!order) {
+          throw new NotFoundException('Order not found');
+        }
+
+        if (order.status !== OrderStatus.PENDING) {
+          throw new BadRequestException(
+            'Only pending orders can be cancelled by customer',
+          );
+        }
+
+        const saleMovements = await transaction.stockMovement.findMany({
+          where: {
+            referenceType: 'ORDER',
+            referenceId: order.id,
+            type: StockMovementType.SALE,
+          },
+          select: {
+            variantId: true,
+            quantityChange: true,
+            variant: {
+              select: {
+                id: true,
+                name: true,
+                stock: true,
+              },
+            },
+          },
+        });
+
+        const cancelledAt = new Date();
+
+        const updateResult = await transaction.order.updateMany({
+          where: {
+            id: order.id,
+            userId,
+            status: OrderStatus.PENDING,
+          },
+          data: {
+            status: OrderStatus.CANCELLED,
+            cancelledAt,
+            cancellationReason: dto.reason,
+          },
+        });
+
+        if (updateResult.count !== 1) {
+          throw new BadRequestException(
+            'Order status has changed and can no longer be cancelled',
+          );
+        }
+
+        await Promise.all(
+          saleMovements.map(async (movement) => {
+            const restoredQuantity = Math.abs(movement.quantityChange);
+
+            await transaction.productVariant.update({
+              where: {
+                id: movement.variantId,
+              },
+              data: {
+                stock: {
+                  increment: restoredQuantity,
+                },
+              },
+            });
+
+            await transaction.stockMovement.create({
+              data: {
+                variantId: movement.variantId,
+                type: StockMovementType.CANCELLATION,
+                quantityChange: restoredQuantity,
+                stockBefore: movement.variant.stock,
+                stockAfter: movement.variant.stock + restoredQuantity,
+                referenceType: 'ORDER',
+                referenceId: order.id,
+                note: `Stock restored because order ${order.orderNumber} was cancelled`,
+                createdBy: userId,
+              },
+            });
+          }),
+        );
+
+        await transaction.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            fromStatus: OrderStatus.PENDING,
+            toStatus: OrderStatus.CANCELLED,
+            note: dto.reason,
+            changedBy: userId,
+          },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+
+    return this.getMyOrderById(userId, orderId);
   }
 
   private async getValidatedCheckoutCart(
