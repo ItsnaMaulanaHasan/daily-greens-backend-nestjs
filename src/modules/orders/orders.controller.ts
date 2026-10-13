@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -23,6 +24,7 @@ import {
 import { Request } from 'express';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { OrdersService } from './orders.service';
@@ -81,6 +83,36 @@ export class OrdersController {
     @Param('orderId', new ParseUUIDPipe()) orderId: string,
   ) {
     return this.ordersService.getMyOrderById(request.user.id, orderId);
+  }
+
+  @ApiOperation({
+    summary: 'Membatalkan order milik user',
+    description:
+      'Customer hanya dapat membatalkan order yang masih berstatus PENDING. Stok produk akan dikembalikan secara otomatis',
+  })
+  @ApiParam({
+    name: 'orderId',
+    description: 'UUID order yang akan dibatalkan',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Order berhasil dibatalkan',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Order tidak lagi berstatus PENDING atau status order telah berubah',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'Order tidak ditemukan atau bukan milik user yang sedang login',
+  })
+  @Patch(':orderId/cancel')
+  cancelMyOrder(
+    @Req() request: AuthenticatedRequest,
+    @Param('orderId', new ParseUUIDPipe()) orderId: string,
+    @Body() dto: CancelOrderDto,
+  ) {
+    return this.ordersService.cancelMyOrder(request.user.id, orderId, dto);
   }
 
   @ApiOperation({
