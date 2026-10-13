@@ -43,23 +43,6 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @ApiOperation({
-    summary: 'Membuat order dari cart user',
-    description:
-      'Memvalidasi cart, menghitung ulang promo, membuat order, mengurangi stok, dan mengosongkan cart',
-  })
-  @ApiCreatedResponse({
-    description: 'Order berhasil dibuat',
-  })
-  @ApiBadRequestResponse({
-    description:
-      'Cart kosong, produk tidak tersedia, stok tidak mencukupi, promo tidak valid, atau data checkout tidak sesuai',
-  })
-  @Post('checkout')
-  checkout(@Req() request: AuthenticatedRequest, @Body() dto: CreateOrderDto) {
-    return this.ordersService.checkout(request.user.id, dto);
-  }
-
-  @ApiOperation({
     summary: 'Mengambil daftar order milik user',
     description:
       'Mengambil riwayat order milik user yang sedang login dengan filter dan pagination.',
@@ -98,5 +81,22 @@ export class OrdersController {
     @Param('orderId', new ParseUUIDPipe()) orderId: string,
   ) {
     return this.ordersService.getMyOrderById(request.user.id, orderId);
+  }
+
+  @ApiOperation({
+    summary: 'Membuat order dari cart user',
+    description:
+      'Memvalidasi cart, menghitung ulang promo, membuat order, mengurangi stok, dan mengosongkan cart',
+  })
+  @ApiCreatedResponse({
+    description: 'Order berhasil dibuat',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Cart kosong, produk tidak tersedia, stok tidak mencukupi, promo tidak valid, atau data checkout tidak sesuai',
+  })
+  @Post('checkout')
+  checkout(@Req() request: AuthenticatedRequest, @Body() dto: CreateOrderDto) {
+    return this.ordersService.checkout(request.user.id, dto);
   }
 }
