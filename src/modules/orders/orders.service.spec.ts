@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   OrderStatus,
   OrderType,
+  PaymentMethod,
   PaymentStatus,
   StockMovementType,
 } from 'generated/prisma/enums';
@@ -26,6 +27,8 @@ describe('OrdersService', () => {
   const productVariantUpdateMock = jest.fn();
   const orderStatusHistoryCreateMock = jest.fn();
 
+  const cartFindUniqueMock = jest.fn();
+
   beforeEach(async () => {
     orderFindFirstMock.mockReset();
     orderFindManyMock.mockReset();
@@ -39,9 +42,14 @@ describe('OrdersService', () => {
     productVariantUpdateMock.mockReset();
     orderStatusHistoryCreateMock.mockReset();
 
+    cartFindUniqueMock.mockReset();
+
     transactionMock.mockImplementation(
       async (
         callback: (transaction: {
+          cart: {
+            findUnique: typeof cartFindUniqueMock;
+          };
           order: {
             findFirst: typeof orderFindFirstMock;
             updateMany: typeof orderUpdateManyMock;
@@ -59,6 +67,9 @@ describe('OrdersService', () => {
         }) => Promise<unknown>,
       ) =>
         callback({
+          cart: {
+            findUnique: cartFindUniqueMock,
+          },
           order: {
             findFirst: orderFindFirstMock,
             updateMany: orderUpdateManyMock,
@@ -104,6 +115,37 @@ describe('OrdersService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('should reject checkout when cart is empty', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    cartFindUniqueMock.mockResolvedValue(null);
+
+    await expect(
+      service.checkout(userId, {
+        orderType: OrderType.DELIVERY,
+        paymentMethod: PaymentMethod.CASH,
+        customerName: 'Itsna Maulana',
+        customerPhone: '081234567890',
+        deliveryAddress: 'Jl. Merdeka No. 10',
+      }),
+    ).rejects.toThrow('Cart is empty');
+
+    expect(cartFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId,
+        },
+      }),
+    );
+
+    expect(transactionMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        isolationLevel: expect.any(String) as string,
+      }),
+    );
   });
 
   it('should return paginated orders belonging to the user', async () => {
