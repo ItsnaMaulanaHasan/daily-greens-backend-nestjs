@@ -32,6 +32,7 @@ import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 import { OrdersService } from './orders.service';
 
 interface AuthenticatedRequest extends Request {
@@ -94,6 +95,51 @@ export class OrdersController {
     @Body() dto: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateOrderStatus(request.user.id, orderId, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Mengubah status pembayaran order',
+    description:
+      'Endpoint khusus admin untuk memperbarui status pembayaran dan menyinkronkan status pembayaran pada order',
+  })
+  @ApiParam({
+    name: 'orderId',
+    description: 'UUID order',
+    format: 'uuid',
+  })
+  @ApiParam({
+    name: 'paymentId',
+    description: 'UUID payment',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Status pembayaran berhasil diperbarui',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Perpindahan status pembayaran tidak valid, order dibatalkan, atau status pembayaran telah berubah',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Payment tidak ditemukan pada order tersebut',
+  })
+  @Patch('admin/:orderId/payments/:paymentId/status')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  updatePaymentStatus(
+    @Req() request: AuthenticatedRequest,
+    @Param('orderId', new ParseUUIDPipe()) orderId: string,
+    @Param('paymentId', new ParseUUIDPipe()) paymentId: string,
+    @Body() dto: UpdatePaymentStatusDto,
+  ) {
+    return this.ordersService.updatePaymentStatus(
+      request.user.id,
+      orderId,
+      paymentId,
+      dto,
+    );
   }
 
   @ApiOperation({
