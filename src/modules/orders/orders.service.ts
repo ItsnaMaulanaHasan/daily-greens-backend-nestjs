@@ -1139,6 +1139,57 @@ export class OrdersService {
     }
   }
 
+  private validateStatusTransition(
+    currentStatus: OrderStatus,
+    nextStatus: OrderStatus,
+    orderType: OrderType,
+  ) {
+    const allowedTransition: Record<OrderStatus, OrderStatus[]> = {
+      [OrderStatus.PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
+      [OrderStatus.CONFIRMED]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
+      [OrderStatus.PREPARING]: [OrderStatus.READY, OrderStatus.CANCELLED],
+      [OrderStatus.READY]: [
+        OrderStatus.OUT_FOR_DELIVERY,
+        OrderStatus.COMPLETED,
+      ],
+      [OrderStatus.OUT_FOR_DELIVERY]: [OrderStatus.COMPLETED],
+      [OrderStatus.COMPLETED]: [],
+      [OrderStatus.CANCELLED]: [],
+    };
+
+    if (currentStatus === nextStatus) {
+      throw new BadRequestException(
+        `Order is already in ${currentStatus} status`,
+      );
+    }
+
+    if (!allowedTransition[currentStatus].includes(nextStatus)) {
+      throw new BadRequestException(
+        `Order status cannot be changed from ${currentStatus} to ${nextStatus}`,
+      );
+    }
+
+    if (
+      currentStatus === OrderStatus.READY &&
+      nextStatus === OrderStatus.OUT_FOR_DELIVERY &&
+      orderType !== OrderType.DELIVERY
+    ) {
+      throw new BadRequestException(
+        'Only delivery orders can be changed to OUT_FOR_DELIVERY',
+      );
+    }
+
+    if (
+      currentStatus === OrderStatus.READY &&
+      nextStatus === OrderStatus.COMPLETED &&
+      orderType === OrderType.DELIVERY
+    ) {
+      throw new BadRequestException(
+        `Delivery order must be changed to OUT_FOR_DELIVERY before COMPLETED`,
+      );
+    }
+  }
+
   private validateCheckoutRequest(dto: CreateOrderDto): string | null {
     if (dto.paymentMethod !== PaymentMethod.CASH) {
       throw new BadRequestException('Only CASH payment is currently available');
