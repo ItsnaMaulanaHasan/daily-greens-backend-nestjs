@@ -20,6 +20,7 @@ import {
   PromotionCalculationItem,
   PromotionCalculationService,
 } from '../promotions/promotion-calculator.service';
+import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
@@ -336,6 +337,163 @@ export class OrdersService {
         totalLineItems: _count.items,
         itemsPreview: items,
       })),
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
+  }
+
+  async getOrdersForAdmin(query: AdminOrderQueryDto) {
+    const search = query.search?.trim() || null;
+
+    const createdFrom = query.createdFrom ? new Date(query.createdFrom) : null;
+
+    const createdTo = query.createdTo ? new Date(query.createdTo) : null;
+
+    if (createdFrom !== null && createdTo !== null && createdFrom > createdTo) {
+      throw new BadRequestException(
+        'createdFrom cannot be later than createdTo',
+      );
+    }
+
+    const skip = (query.page - 1) * query.limit;
+
+    const where: Prisma.OrderWhereInput = {
+      ...(search
+        ? {
+            OR: [
+              {
+                orderNumber: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                customerName: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                customerPhone: {
+                  contains: search,
+                },
+              },
+            ],
+          }
+        : {}),
+
+      ...(query.status
+        ? {
+            status: query.status,
+          }
+        : {}),
+
+      ...(query.orderType
+        ? {
+            orderType: query.orderType,
+          }
+        : {}),
+
+      ...(query.paymentStatus
+        ? {
+            paymentStatus: query.paymentStatus,
+          }
+        : {}),
+
+      ...(createdFrom !== null || createdTo !== null
+        ? {
+            createdAt: {
+              ...(createdFrom !== null
+                ? {
+                    gte: createdFrom,
+                  }
+                : {}),
+              ...(createdTo !== null
+                ? {
+                    lte: createdTo,
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          orderType: true,
+          paymentStatus: true,
+
+          customerName: true,
+          customerPhone: true,
+
+          subtotal: true,
+          discountAmount: true,
+          deliveryFee: true,
+          taxAmount: true,
+          totalAmount: true,
+
+          createdAt: true,
+          updatedAt: true,
+
+          user: {
+            select: {
+              id: true,
+              email: true,
+            },
+          },
+
+          items: {
+            take: 3,
+            orderBy: {
+              createdAt: 'asc',
+            },
+            select: {
+              id: true,
+              productName: true,
+              variantName: true,
+              quantity: true,
+            },
+          },
+
+          _count: {
+            select: {
+              items: true,
+            },
+          },
+        },
+      }),
+
+      this.prisma.order.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: orders.map(({ _count, items, ...order }) => ({
+        ...order,
+        subtotal: Number(order.subtotal),
+        discountAmount: Number(order.discountAmount),
+        deliveryFee: Number(order.deliveryFee),
+        taxAmount: Number(order.taxAmount),
+        totalAmount: Number(order.totalAmount),
+        totalLineItems: _count.items,
+        itemsPreview: items,
+      })),
+
       meta: {
         page: query.page,
         limit: query.limit,
