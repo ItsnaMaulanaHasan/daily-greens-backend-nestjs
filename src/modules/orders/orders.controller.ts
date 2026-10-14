@@ -27,6 +27,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
+import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
@@ -93,6 +94,27 @@ export class OrdersController {
     @Body() dto: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateOrderStatus(request.user.id, orderId, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Mengambil seluruh daftar order',
+    description:
+      'Endpoint khusus admin dengan pencarian,filter status, tipe order, status pembayaran, tanggal, dan pagination',
+  })
+  @ApiOkResponse({
+    description: 'Daftar order berhasil diambil',
+  })
+  @ApiBadRequestResponse({
+    description: 'Rentang tanggal tidak valid atau query tidak sesuai',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @Get('admin')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  getOrderForAdmin(@Query() query: AdminOrderQueryDto) {
+    return this.ordersService.getOrdersForAdmin(query);
   }
 
   @ApiOperation({
