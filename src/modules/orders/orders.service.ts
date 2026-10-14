@@ -503,6 +503,23 @@ export class OrdersService {
     };
   }
 
+  async getOrderByIdForAdmin(orderId: string) {
+    const orderOwner = await this.prisma.order.findUnique({
+      where: {
+        id: orderId,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!orderOwner) {
+      throw new NotFoundException('Order not foundd');
+    }
+
+    return this.getMyOrderById(orderOwner.userId, orderId);
+  }
+
   async getMyOrderById(userId: string, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: {
