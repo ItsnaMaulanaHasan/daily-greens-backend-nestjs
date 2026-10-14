@@ -9,6 +9,7 @@ import {
   OrderStatus,
   OrderType,
   PaymentMethod,
+  PaymentStatus,
   ProductStatus,
   PromotionApplicationType,
   PromotionScope,
@@ -25,6 +26,7 @@ import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 
 interface AppliedCheckoutPromotion {
   id: string;
@@ -865,6 +867,135 @@ export class OrdersService {
     );
   }
 
+  async updatePaymentStatus(
+    adminUserId: string,
+    orderId: string,
+    paymentId: string,
+    dto: UpdatePaymentStatusDto,
+  ) {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const payment = await transaction.payment.findFirst({
+          where: {
+            id: paymentId,
+            orderId,
+          },
+          select: {
+            id: true,
+            orderId: true,
+            method: true,
+            status: true,
+            amount: true,
+            refundedAmount: true,
+            metadata: true,
+            order: {
+              select: {
+                status: true,
+              },
+            },
+          },
+        });
+
+        if (!payment) {
+          throw new NotFoundException('Payment not found');
+        }
+
+        if (payment.order.status === OrderStatus.CANCELLED) {
+          throw new BadRequestException(
+            'Payment status of a cancelled order cannot be changed',
+          );
+        }
+
+        this.validatePaymentStatusTransition(payment.status, dto.status);
+
+        const note = dto.note?.trim() || null;
+        const changedAt = new Date();
+
+        const existingMetadata =
+          payment.metadata !== null &&
+          typeof payment.metadata === 'object' &&
+          !Array.isArray(payment.metadata)
+            ? payment.metadata
+            : {};
+
+        const metadata: Prisma.InputJsonObject = {
+          ...existingMetadata,
+          ...(note !== null
+            ? {
+                statusNote: note,
+              }
+            : {}),
+          statusUpdatedBy: adminUserId,
+          statusUpdatedAt: changedAt.toISOString(),
+        };
+
+        const updateResult = await transaction.payment.updateMany({
+          where: {
+            id: payment.id,
+            orderId,
+            status: payment.status,
+          },
+          data: {
+            status: dto.status,
+            metadata,
+
+            ...(dto.status === PaymentStatus.PAID
+              ? {
+                  paidAt: changedAt,
+                  failedAt: null,
+                }
+              : {}),
+
+            ...(dto.status === PaymentStatus.FAILED
+              ? {
+                  paidAt: null,
+                  failedAt: changedAt,
+                }
+              : {}),
+
+            ...(dto.status === PaymentStatus.PENDING
+              ? {
+                  paidAt: null,
+                  failedAt: null,
+                }
+              : {}),
+          },
+        });
+
+        if (updateResult.count !== 1) {
+          throw new BadRequestException(
+            'Payment status has changed. Please reload the order and try again',
+          );
+        }
+
+        await transaction.order.update({
+          where: {
+            id: orderId,
+          },
+          data: {
+            paymentStatus: dto.status,
+          },
+        });
+
+        return {
+          id: payment.id,
+          orderId: payment.orderId,
+          method: payment.method,
+          previousStatus: payment.status,
+          status: dto.status,
+          amoun: Number(payment.amount),
+          refundedAmount: Number(payment.refundedAmount),
+          note,
+          paidAt: dto.status === PaymentStatus.PAID ? changedAt : null,
+          failedAt: dto.status === PaymentStatus.FAILED ? changedAt : null,
+        };
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
   private async getValidatedCheckoutCart(
     transaction: Prisma.TransactionClient,
     userId: string,
@@ -1444,6 +1575,32 @@ export class OrdersService {
         });
       }),
     );
+  }
+
+  private validatePaymentStatusTransition(
+    currentStatus: PaymentStatus,
+    nextStatus: PaymentStatus,
+  ): void {
+    const allowedTransition: Record<PaymentStatus, PaymentStatus[]> = {
+      [PaymentStatus.PENDING]: [PaymentStatus.PAID, PaymentStatus.FAILED],
+      [PaymentStatus.PAID]: [],
+      [PaymentStatus.FAILED]: [PaymentStatus.PENDING],
+      [PaymentStatus.EXPIRED]: [],
+      [PaymentStatus.REFUNDED]: [],
+      [PaymentStatus.PARTIALLY_REFUNDED]: [],
+    };
+
+    if (currentStatus === nextStatus) {
+      throw new BadRequestException(
+        `Payment is already in ${currentStatus} status`,
+      );
+    }
+
+    if (!allowedTransition[currentStatus].includes(nextStatus)) {
+      throw new BadRequestException(
+        `Payment status cannot be changed from ${currentStatus} to ${nextStatus}`,
+      );
+    }
   }
 
   private validateStatusTransition(
