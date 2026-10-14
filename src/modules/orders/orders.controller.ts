@@ -14,6 +14,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -22,11 +23,14 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { OrdersService } from './orders.service';
 
 interface AuthenticatedRequest extends Request {
@@ -58,6 +62,37 @@ export class OrdersController {
     @Query() query: OrderQueryDto,
   ) {
     return this.ordersService.getMyOrders(request.user.id, query);
+  }
+
+  @ApiOperation({
+    summary: 'Mengubah status order',
+    description:
+      'Endpoint khusus admin untuk memproses status order sesuai alur yang diperbolehkan',
+  })
+  @ApiParam({
+    name: 'ordeId',
+    description: 'UUID order',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description:
+      'Perpindahan tidak valid, catatan pembatalan tidak tersedia, atau status telah berubah',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Order tidak ditemukan',
+  })
+  @Patch('admin/:orderId/status')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  updateStatusOrder(
+    @Req() request: AuthenticatedRequest,
+    @Param('orderId', new ParseUUIDPipe()) orderId: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ) {
+    return this.ordersService.updateOrderStatus(request.user.id, orderId, dto);
   }
 
   @ApiOperation({
