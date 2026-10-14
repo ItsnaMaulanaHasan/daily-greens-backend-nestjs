@@ -526,27 +526,6 @@ export class OrdersService {
           );
         }
 
-        const saleMovements = await transaction.stockMovement.findMany({
-          where: {
-            referenceType: 'ORDER',
-            referenceId: order.id,
-            type: StockMovementType.SALE,
-          },
-          select: {
-            variantId: true,
-            quantityChange: true,
-            variant: {
-              select: {
-                id: true,
-                name: true,
-                stock: true,
-              },
-            },
-          },
-        });
-
-        const cancelledAt = new Date();
-
         const updateResult = await transaction.order.updateMany({
           where: {
             id: order.id,
@@ -555,7 +534,7 @@ export class OrdersService {
           },
           data: {
             status: OrderStatus.CANCELLED,
-            cancelledAt,
+            cancelledAt: new Date(),
             cancellationReason: dto.reason,
           },
         });
@@ -566,35 +545,13 @@ export class OrdersService {
           );
         }
 
-        await Promise.all(
-          saleMovements.map(async (movement) => {
-            const restoredQuantity = Math.abs(movement.quantityChange);
-
-            await transaction.productVariant.update({
-              where: {
-                id: movement.variantId,
-              },
-              data: {
-                stock: {
-                  increment: restoredQuantity,
-                },
-              },
-            });
-
-            await transaction.stockMovement.create({
-              data: {
-                variantId: movement.variantId,
-                type: StockMovementType.CANCELLATION,
-                quantityChange: restoredQuantity,
-                stockBefore: movement.variant.stock,
-                stockAfter: movement.variant.stock + restoredQuantity,
-                referenceType: 'ORDER',
-                referenceId: order.id,
-                note: `Stock restored because order ${order.orderNumber} was cancelled`,
-                createdBy: userId,
-              },
-            });
-          }),
+        await this.restoredOrderStock(
+          transaction,
+          {
+            id: order.id,
+            orderNumber: order.orderNumber,
+          },
+          userId,
         );
 
         await transaction.orderStatusHistory.create({
@@ -1137,6 +1094,63 @@ export class OrdersService {
         );
       }
     }
+  }
+
+  private async restoredOrderStock(
+    transaction: Prisma.TransactionClient,
+    order: {
+      id: string;
+      orderNumber: string;
+    },
+    changedBy: string,
+  ): Promise<void> {
+    const saleMovements = await transaction.stockMovement.findMany({
+      where: {
+        referenceType: 'ORDER',
+        referenceId: order.id,
+        type: StockMovementType.SALE,
+      },
+      select: {
+        variantId: true,
+        quantityChange: true,
+        variant: {
+          select: {
+            stock: true,
+          },
+        },
+      },
+    });
+
+    await Promise.all(
+      saleMovements.map(async (movement) => {
+        const restoredQuantity = Math.abs(movement.quantityChange);
+
+        await transaction.productVariant.update({
+          where: {
+            id: movement.variantId,
+          },
+          data: {
+            stock: {
+              increment: restoredQuantity,
+            },
+          },
+        });
+
+        await transaction.stockMovement.create({
+          data: {
+            variantId: movement.variantId,
+            type: StockMovementType.CANCELLATION,
+            quantityChange: restoredQuantity,
+            stockBefore: movement.variant.stock,
+            stockAfter: movement.variant.stock + restoredQuantity,
+            referenceType: 'ORDER',
+            referenceId: order.id,
+            note: `Stock restored because order ${order.orderNumber} was cancelled`,
+            createdBy: changedBy,
+          },
+        });
+      }),
+    );
   }
 
   private validateStatusTransition(
