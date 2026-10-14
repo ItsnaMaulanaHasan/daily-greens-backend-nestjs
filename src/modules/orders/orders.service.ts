@@ -23,6 +23,7 @@ import {
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 interface AppliedCheckoutPromotion {
   id: string;
@@ -570,6 +571,123 @@ export class OrdersService {
     );
 
     return this.getMyOrderById(userId, orderId);
+  }
+
+  async updateOrderStatus(
+    adminUserId: string,
+    orderId: string,
+    dto: UpdateOrderStatusDto,
+  ) {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const order = await transaction.order.findUnique({
+          where: {
+            id: orderId,
+          },
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            orderType: true,
+          },
+        });
+
+        if (!order) {
+          throw new NotFoundException('Order not found');
+        }
+
+        this.validateStatusTransition(
+          order.status,
+          dto.status,
+          order.orderType,
+        );
+
+        const note = dto.note?.trim() || null;
+
+        if (dto.status === OrderStatus.CANCELLED && note === null) {
+          throw new BadRequestException('Cancellation note is required');
+        }
+
+        const changedAt = new Date();
+
+        const updateResult = await transaction.order.updateMany({
+          where: {
+            id: order.id,
+            status: order.status,
+          },
+          data: {
+            status: dto.status,
+
+            ...(dto.status === OrderStatus.CONFIRMED
+              ? {
+                  confirmedAt: changedAt,
+                }
+              : {}),
+
+            ...(dto.status === OrderStatus.COMPLETED
+              ? {
+                  completedAt: changedAt,
+                }
+              : {}),
+
+            ...(dto.status === OrderStatus.CANCELLED
+              ? {
+                  cancelledAt: changedAt,
+                  cancellationReason: note,
+                }
+              : {}),
+          },
+        });
+
+        if (updateResult.count !== 1) {
+          throw new BadRequestException(
+            'Order status hass changed. Please reload the order and try again',
+          );
+        }
+
+        if (dto.status === OrderStatus.CANCELLED) {
+          await this.restoredOrderStock(
+            transaction,
+            {
+              id: order.id,
+              orderNumber: order.orderNumber,
+            },
+            adminUserId,
+          );
+        }
+
+        await transaction.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            fromStatus: order.status,
+            toStatus: dto.status,
+            note,
+            changedBy: adminUserId,
+          },
+        });
+
+        return transaction.order.findUnique({
+          where: {
+            id: order.id,
+          },
+          select: {
+            id: true,
+            orderNumber: true,
+            status: true,
+            orderType: true,
+            paymentStatus: true,
+            confirmedAt: true,
+            completedAt: true,
+            cancelledAt: true,
+            cancellationReason: true,
+            updatedAt: true,
+          },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
   }
 
   private async getValidatedCheckoutCart(
