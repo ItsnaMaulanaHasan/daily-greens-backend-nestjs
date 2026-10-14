@@ -118,6 +118,32 @@ export class OrdersController {
   }
 
   @ApiOperation({
+    summary: 'Mengambil detail order untuk admin',
+    description:
+      'Mengambil detail order customer beserta item, promosi, pembayaran, dan riwayat perubahan status',
+  })
+  @ApiParam({
+    name: 'orderId',
+    description: 'UUID order',
+    format: 'uuid',
+  })
+  @ApiOkResponse({
+    description: 'Detail order berhsil diambil',
+  })
+  @ApiForbiddenResponse({
+    description: 'User sudah login tetapi bukan admin',
+  })
+  @ApiNotFoundResponse({
+    description: 'Order tidak ditemukan',
+  })
+  @Get('admin/:orderId')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  getOrderByIdForAdmin(@Param('orderId', new ParseUUIDPipe()) orderId: string) {
+    return this.ordersService.getOrderByIdForAdmin(orderId);
+  }
+
+  @ApiOperation({
     summary: 'Mengambil detail order milik user',
     description:
       'Mengambil detail order beserta item, pilihan produk, promosi, pembayaran, dan riwayat status',
