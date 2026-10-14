@@ -27,6 +27,7 @@ describe('OrdersService', () => {
   const stockMovementCreateMock = jest.fn();
   const productVariantUpdateMock = jest.fn();
   const orderStatusHistoryCreateMock = jest.fn();
+  const orderFindUniqueMock = jest.fn();
 
   const cartFindUniqueMock = jest.fn();
 
@@ -48,6 +49,7 @@ describe('OrdersService', () => {
     stockMovementCreateMock.mockReset();
     productVariantUpdateMock.mockReset();
     orderStatusHistoryCreateMock.mockReset();
+    orderFindUniqueMock.mockReset();
 
     cartFindUniqueMock.mockReset();
 
@@ -72,6 +74,7 @@ describe('OrdersService', () => {
           };
           order: {
             findFirst: typeof orderFindFirstMock;
+            findUnique: typeof orderFindUniqueMock;
             create: typeof orderCreateMock;
             updateMany: typeof orderUpdateManyMock;
           };
@@ -101,6 +104,7 @@ describe('OrdersService', () => {
           },
           order: {
             findFirst: orderFindFirstMock,
+            findUnique: orderFindUniqueMock,
             create: orderCreateMock,
             updateMany: orderUpdateManyMock,
           },
@@ -126,6 +130,7 @@ describe('OrdersService', () => {
           useValue: {
             order: {
               findFirst: orderFindFirstMock,
+              findUnique: orderFindUniqueMock,
               findMany: orderFindManyMock,
               count: orderCountMock,
             },
@@ -711,5 +716,94 @@ describe('OrdersService', () => {
       orderNumber: 'DG-20261013080000-ABC123',
       status: OrderStatus.PENDING,
     });
+  });
+
+  it('should allow admin to confirm a pending order', async () => {
+    const adminUserId = '11111111-1111-4111-8111-111111111111';
+
+    const orderId = '22222222-2222-4222-8222-222222222222';
+
+    const updatedOrder = {
+      id: orderId,
+      orderNumber: 'DG-20261013080000-ABC123',
+      status: OrderStatus.CONFIRMED,
+      orderType: OrderType.DELIVERY,
+      paymentStatus: PaymentStatus.PENDING,
+      confirmedAt: new Date('2026-10-15T08:00:00.000Z'),
+      completedAt: null,
+      cancelledAt: null,
+      cancellationReason: null,
+      updatedAt: new Date('2026-10-15T08:00:00.000Z'),
+    };
+
+    orderFindUniqueMock
+      .mockResolvedValueOnce({
+        id: orderId,
+        orderNumber: 'DG-20261013080000-ABC123',
+        status: OrderStatus.PENDING,
+        orderType: OrderType.DELIVERY,
+      })
+      .mockResolvedValueOnce(updatedOrder);
+
+    orderUpdateManyMock.mockResolvedValue({
+      count: 1,
+    });
+
+    orderStatusHistoryCreateMock.mockResolvedValue({
+      id: '33333333-3333-4333-8333-333333333333',
+    });
+
+    const result = await service.updateOrderStatus(adminUserId, orderId, {
+      status: OrderStatus.CONFIRMED,
+      note: 'Pesanan telah dikonfirmasi',
+    });
+
+    expect(orderUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: orderId,
+        status: OrderStatus.PENDING,
+      },
+      data: {
+        status: OrderStatus.CONFIRMED,
+        confirmedAt: expect.any(Date) as Date,
+      },
+    });
+
+    expect(orderStatusHistoryCreateMock).toHaveBeenCalledWith({
+      data: {
+        orderId,
+        fromStatus: OrderStatus.PENDING,
+        toStatus: OrderStatus.CONFIRMED,
+        note: 'Pesanan telah dikonfirmasi',
+        changedBy: adminUserId,
+      },
+    });
+
+    expect(result).toEqual(updatedOrder);
+  });
+
+  it('should reject completing a ready delivery order directly', async () => {
+    const adminUserId = '11111111-1111-4111-8111-111111111111';
+
+    const orderId = '22222222-2222-4222-8222-222222222222';
+
+    orderFindUniqueMock.mockResolvedValue({
+      id: orderId,
+      orderNumber: 'DG-20261013080000-ABC123',
+      status: OrderStatus.READY,
+      orderType: OrderType.DELIVERY,
+    });
+
+    await expect(
+      service.updateOrderStatus(adminUserId, orderId, {
+        status: OrderStatus.COMPLETED,
+      }),
+    ).rejects.toThrow(
+      'Delivery order must be changed to OUT_FOR_DELIVERY before COMPLETED',
+    );
+
+    expect(orderUpdateManyMock).not.toHaveBeenCalled();
+
+    expect(orderStatusHistoryCreateMock).not.toHaveBeenCalled();
   });
 });
