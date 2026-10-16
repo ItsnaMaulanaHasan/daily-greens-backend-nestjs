@@ -691,6 +691,7 @@ export class OrdersService {
             id: true,
             orderNumber: true,
             status: true,
+            paymentStatus: true,
           },
         });
 
@@ -701,6 +702,15 @@ export class OrdersService {
         if (order.status !== OrderStatus.PENDING) {
           throw new BadRequestException(
             'Only pending orders can be cancelled by customer',
+          );
+        }
+
+        if (
+          order.paymentStatus === PaymentStatus.PAID ||
+          order.paymentStatus === PaymentStatus.PARTIALLY_REFUNDED
+        ) {
+          throw new BadRequestException(
+            'Paid orders cannot be cancelled before the refund process is completed',
           );
         }
 
@@ -766,6 +776,7 @@ export class OrdersService {
             orderNumber: true,
             status: true,
             orderType: true,
+            paymentStatus: true,
           },
         });
 
@@ -778,6 +789,16 @@ export class OrdersService {
           dto.status,
           order.orderType,
         );
+
+        if (
+          dto.status === OrderStatus.CANCELLED &&
+          (order.paymentStatus === PaymentStatus.PAID ||
+            order.paymentStatus === PaymentStatus.PARTIALLY_REFUNDED)
+        ) {
+          throw new BadRequestException(
+            'Paid orders cannot be cancelled before the refund process is completed',
+          );
+        }
 
         const note = dto.note?.trim() || null;
 

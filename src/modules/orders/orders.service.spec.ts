@@ -438,6 +438,7 @@ describe('OrdersService', () => {
         id: true,
         orderNumber: true,
         status: true,
+        paymentStatus: true,
       },
     });
   });
@@ -456,6 +457,7 @@ describe('OrdersService', () => {
         id: orderId,
         orderNumber: 'DG-20261013080000-ABC123',
         status: OrderStatus.PENDING,
+        PaymentStatus: PaymentStatus.PENDING,
       })
       .mockResolvedValueOnce({
         id: orderId,
@@ -935,5 +937,30 @@ describe('OrdersService', () => {
     expect(paymentUpdateManyMock).not.toHaveBeenCalled();
 
     expect(orderUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it('should reject cancellation when order has been paid', async () => {
+    const userId = '11111111-1111-4111-8111-111111111111';
+
+    const orderId = '22222222-2222-4222-8222-222222222222';
+
+    orderFindFirstMock.mockResolvedValue({
+      id: orderId,
+      orderNumber: 'DG-20261013080000-ABC123',
+      status: OrderStatus.PENDING,
+      paymentStatus: PaymentStatus.PAID,
+    });
+
+    await expect(
+      service.cancelMyOrder(userId, orderId, {
+        reason: 'Saya ingin membatalkan pesanan ini',
+      }),
+    ).rejects.toThrow(
+      'Paid orders cannot be cancelled before the refund process is completed',
+    );
+
+    expect(orderUpdateManyMock).not.toHaveBeenCalled();
+
+    expect(stockMovementFindManyMock).not.toHaveBeenCalled();
   });
 });
