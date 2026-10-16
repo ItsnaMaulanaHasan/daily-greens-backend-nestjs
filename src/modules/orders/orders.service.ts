@@ -818,7 +818,7 @@ export class OrdersService {
 
         if (updateResult.count !== 1) {
           throw new BadRequestException(
-            'Order status hass changed. Please reload the order and try again',
+            'Order status has changed. Please reload the order and try again',
           );
         }
 
@@ -983,7 +983,7 @@ export class OrdersService {
           method: payment.method,
           previousStatus: payment.status,
           status: dto.status,
-          amoun: Number(payment.amount),
+          amount: Number(payment.amount),
           refundedAmount: Number(payment.refundedAmount),
           note,
           paidAt: dto.status === PaymentStatus.PAID ? changedAt : null,
