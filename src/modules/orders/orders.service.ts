@@ -1695,6 +1695,29 @@ export class OrdersService {
     return deliveryAddress;
   }
 
+  private async runSerializableTransaction<T>(
+    operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+    attempt = 1,
+  ): Promise<T> {
+    try {
+      return await this.prisma.$transaction(operation, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5000,
+        timeout: 15000,
+      });
+    } catch (error: unknown) {
+      const isTransactionConflict =
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2034';
+
+      if (!isTransactionConflict || attempt >= 3) {
+        throw error;
+      }
+
+      return this.runSerializableTransaction(operation, attempt + 1);
+    }
+  }
+
   private generateOrderNumber(): string {
     const timestamp = new Date().toISOString().replace(/\D/g, '').slice(0, 14);
 
