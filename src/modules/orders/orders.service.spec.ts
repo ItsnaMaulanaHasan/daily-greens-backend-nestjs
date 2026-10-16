@@ -37,6 +37,10 @@ describe('OrdersService', () => {
   const orderCreateMock = jest.fn();
   const productVariantUpdateManyMock = jest.fn();
 
+  const orderUpdateMock = jest.fn();
+  const paymentFindFirstMock = jest.fn();
+  const paymentUpdateManyMock = jest.fn();
+
   beforeEach(async () => {
     orderFindFirstMock.mockReset();
     orderFindManyMock.mockReset();
@@ -59,6 +63,10 @@ describe('OrdersService', () => {
     orderCreateMock.mockReset();
     productVariantUpdateManyMock.mockReset();
 
+    orderUpdateMock.mockReset();
+    paymentFindFirstMock.mockReset();
+    paymentUpdateManyMock.mockReset();
+
     transactionMock.mockImplementation(
       async (
         callback: (transaction: {
@@ -76,6 +84,7 @@ describe('OrdersService', () => {
             findFirst: typeof orderFindFirstMock;
             findUnique: typeof orderFindUniqueMock;
             create: typeof orderCreateMock;
+            update: typeof orderUpdateMock;
             updateMany: typeof orderUpdateManyMock;
           };
           stockMovement: {
@@ -88,6 +97,10 @@ describe('OrdersService', () => {
           };
           orderStatusHistory: {
             create: typeof orderStatusHistoryCreateMock;
+          };
+          payment: {
+            findFirst: typeof paymentFindFirstMock;
+            updateMany: typeof paymentUpdateManyMock;
           };
         }) => Promise<unknown>,
       ) =>
@@ -106,6 +119,7 @@ describe('OrdersService', () => {
             findFirst: orderFindFirstMock,
             findUnique: orderFindUniqueMock,
             create: orderCreateMock,
+            update: orderUpdateMock,
             updateMany: orderUpdateManyMock,
           },
           stockMovement: {
@@ -118,6 +132,10 @@ describe('OrdersService', () => {
           },
           orderStatusHistory: {
             create: orderStatusHistoryCreateMock,
+          },
+          payment: {
+            findFirst: paymentFindFirstMock,
+            updateMany: paymentUpdateManyMock,
           },
         }),
     );
@@ -805,5 +823,117 @@ describe('OrdersService', () => {
     expect(orderUpdateManyMock).not.toHaveBeenCalled();
 
     expect(orderStatusHistoryCreateMock).not.toHaveBeenCalled();
+  });
+
+  it('should mark a pending payment as paid', async () => {
+    const adminUserId = '11111111-1111-4111-8111-111111111111';
+
+    const orderId = '22222222-2222-4222-8222-222222222222';
+
+    const paymentId = '33333333-3333-4333-8333-333333333333';
+
+    paymentFindFirstMock.mockResolvedValue({
+      id: paymentId,
+      orderId,
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PENDING,
+      amount: 50000,
+      refundedAmount: 0,
+      metadata: null,
+      order: {
+        status: OrderStatus.CONFIRMED,
+      },
+    });
+
+    paymentUpdateManyMock.mockResolvedValue({
+      count: 1,
+    });
+
+    orderUpdateMock.mockResolvedValue({
+      id: orderId,
+      paymentStatus: PaymentStatus.PAID,
+    });
+
+    const result = await service.updatePaymentStatus(
+      adminUserId,
+      orderId,
+      paymentId,
+      {
+        status: PaymentStatus.PAID,
+        note: 'Pembayaran tunai telah diterima',
+      },
+    );
+
+    expect(paymentUpdateManyMock).toHaveBeenCalledWith({
+      where: {
+        id: paymentId,
+        orderId,
+        status: PaymentStatus.PENDING,
+      },
+      data: {
+        status: PaymentStatus.PAID,
+        metadata: expect.objectContaining({
+          statusNote: 'Pembayaran tunai telah diterima',
+          statusUpdatedBy: adminUserId,
+          statusUpdatedAt: expect.any(String) as string,
+        }) as Record<string, unknown>,
+        paidAt: expect.any(Date) as Date,
+        failedAt: null,
+      },
+    });
+
+    expect(orderUpdateMock).toHaveBeenCalledWith({
+      where: {
+        id: orderId,
+      },
+      data: {
+        paymentStatus: PaymentStatus.PAID,
+      },
+    });
+
+    expect(result).toMatchObject({
+      id: paymentId,
+      orderId,
+      method: PaymentMethod.CASH,
+      previousStatus: PaymentStatus.PENDING,
+      status: PaymentStatus.PAID,
+      amount: 50000,
+      refundedAmount: 0,
+      note: 'Pembayaran tunai telah diterima',
+      failedAt: null,
+    });
+
+    expect(result.paidAt).toBeInstanceOf(Date);
+  });
+
+  it('should reject payment changes for a cancelled order', async () => {
+    const adminUserId = '11111111-1111-4111-8111-111111111111';
+
+    const orderId = '22222222-2222-4222-8222-222222222222';
+
+    const paymentId = '33333333-3333-4333-8333-333333333333';
+
+    paymentFindFirstMock.mockResolvedValue({
+      id: paymentId,
+      orderId,
+      method: PaymentMethod.CASH,
+      status: PaymentStatus.PENDING,
+      amount: 50000,
+      refundedAmount: 0,
+      metadata: null,
+      order: {
+        status: OrderStatus.CANCELLED,
+      },
+    });
+
+    await expect(
+      service.updatePaymentStatus(adminUserId, orderId, paymentId, {
+        status: PaymentStatus.PAID,
+      }),
+    ).rejects.toThrow('Payment status of a cancelled order cannot be changed');
+
+    expect(paymentUpdateManyMock).not.toHaveBeenCalled();
+
+    expect(orderUpdateMock).not.toHaveBeenCalled();
   });
 });
