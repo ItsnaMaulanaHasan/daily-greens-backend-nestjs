@@ -1579,7 +1579,7 @@ export class OrdersService {
     currentStatus: PaymentStatus,
     nextStatus: PaymentStatus,
   ): void {
-    const allowedTransition: Record<PaymentStatus, PaymentStatus[]> = {
+    const allowedTransitions: Record<PaymentStatus, PaymentStatus[]> = {
       [PaymentStatus.PENDING]: [PaymentStatus.PAID, PaymentStatus.FAILED],
       [PaymentStatus.PAID]: [],
       [PaymentStatus.FAILED]: [PaymentStatus.PENDING],
@@ -1594,7 +1594,7 @@ export class OrdersService {
       );
     }
 
-    if (!allowedTransition[currentStatus].includes(nextStatus)) {
+    if (!allowedTransitions[currentStatus].includes(nextStatus)) {
       throw new BadRequestException(
         `Payment status cannot be changed from ${currentStatus} to ${nextStatus}`,
       );
@@ -1606,7 +1606,7 @@ export class OrdersService {
     nextStatus: OrderStatus,
     orderType: OrderType,
   ) {
-    const allowedTransition: Record<OrderStatus, OrderStatus[]> = {
+    const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
       [OrderStatus.PENDING]: [OrderStatus.CONFIRMED, OrderStatus.CANCELLED],
       [OrderStatus.CONFIRMED]: [OrderStatus.PREPARING, OrderStatus.CANCELLED],
       [OrderStatus.PREPARING]: [OrderStatus.READY, OrderStatus.CANCELLED],
@@ -1625,7 +1625,7 @@ export class OrdersService {
       );
     }
 
-    if (!allowedTransition[currentStatus].includes(nextStatus)) {
+    if (!allowedTransitions[currentStatus].includes(nextStatus)) {
       throw new BadRequestException(
         `Order status cannot be changed from ${currentStatus} to ${nextStatus}`,
       );
