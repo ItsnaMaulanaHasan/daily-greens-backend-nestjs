@@ -62,205 +62,200 @@ export class OrdersService {
     const deliveryAddress = this.validateCheckoutRequest(dto);
     const orderNumber = this.generateOrderNumber();
 
-    return this.prisma.$transaction(
-      async (transaction) => {
-        const cart = await this.getValidatedCheckoutCart(transaction, userId);
+    return this.runSerializableTransaction(async (transaction) => {
+      const cart = await this.getValidatedCheckoutCart(transaction, userId);
 
-        const pricing = await this.calculateCheckoutPricing(transaction, cart);
+      const pricing = await this.calculateCheckoutPricing(transaction, cart);
 
-        await this.validatePromotionUsage(
-          transaction,
+      await this.validatePromotionUsage(
+        transaction,
+        userId,
+        pricing.appliedPromotions.map((promotion) => promotion.id),
+      );
+
+      const order = await transaction.order.create({
+        data: {
+          orderNumber,
           userId,
-          pricing.appliedPromotions.map((promotion) => promotion.id),
-        );
+          orderType: dto.orderType,
+          customerName: dto.customerName,
+          customerPhone: dto.customerPhone,
+          customerNote: dto.customerNote?.trim() || null,
+          deliveryAddress,
+          subtotal: pricing.subtotal,
+          discountAmount: pricing.discountAmount,
+          deliveryFee: pricing.deliveryFee,
+          taxAmount: pricing.taxAmount,
+          totalAmount: pricing.totalAmount,
 
-        const order = await transaction.order.create({
-          data: {
-            orderNumber,
-            userId,
-            orderType: dto.orderType,
-            customerName: dto.customerName,
-            customerPhone: dto.customerPhone,
-            customerNote: dto.customerNote?.trim() || null,
-            deliveryAddress,
-            subtotal: pricing.subtotal,
-            discountAmount: pricing.discountAmount,
-            deliveryFee: pricing.deliveryFee,
-            taxAmount: pricing.taxAmount,
-            totalAmount: pricing.totalAmount,
+          items: {
+            create: cart.items.map((item) => ({
+              productId: item.variant.product.id,
+              variantId: item.variant.id,
+              productName: item.variant.product.name,
+              variantName: item.variant.name,
+              sku: item.variant.sku,
+              unitPrice: Number(item.variant.price),
+              quantity: item.quantity,
+              lineTotal: Number(item.variant.price) * item.quantity,
+              customerNote: item.note,
 
-            items: {
-              create: cart.items.map((item) => ({
-                productId: item.variant.product.id,
-                variantId: item.variant.id,
-                productName: item.variant.product.name,
-                variantName: item.variant.name,
-                sku: item.variant.sku,
-                unitPrice: Number(item.variant.price),
-                quantity: item.quantity,
-                lineTotal: Number(item.variant.price) * item.quantity,
-                customerNote: item.note,
-
-                options: {
-                  create: [...item.variant.optionValues]
-                    .sort(
-                      (firstOption, secondOption) =>
-                        firstOption.optionValue.option.position -
-                        secondOption.optionValue.option.position,
-                    )
-                    .map(({ optionValue }) => ({
-                      optionName: optionValue.option.displayName,
-                      optionValue: optionValue.label,
-                      position: optionValue.option.position,
-                    })),
-                },
-              })),
-            },
-
-            promotions: {
-              create: pricing.appliedPromotions.map((promotion) => ({
-                promotionId: promotion.id,
-                promotionName: promotion.name,
-                promotionCode: promotion.code,
-                applicationType: promotion.applicationType,
-                discountType: promotion.discountType,
-                scope: promotion.scope,
-                discountValue: promotion.discountValue,
-                eligibleSubtotal: promotion.eligibleSubtotal,
-                discountAmount: promotion.discountAmount,
-                priority: promotion.priority,
-                isStackable: promotion.isStackable,
-              })),
-            },
-
-            statusHistories: {
-              create: {
-                fromStatus: null,
-                toStatus: OrderStatus.PENDING,
-                note: 'Order created',
-                changedBy: userId,
+              options: {
+                create: [...item.variant.optionValues]
+                  .sort(
+                    (firstOption, secondOption) =>
+                      firstOption.optionValue.option.position -
+                      secondOption.optionValue.option.position,
+                  )
+                  .map(({ optionValue }) => ({
+                    optionName: optionValue.option.displayName,
+                    optionValue: optionValue.label,
+                    position: optionValue.option.position,
+                  })),
               },
-            },
+            })),
+          },
 
-            payments: {
-              create: {
-                method: dto.paymentMethod,
-                amount: pricing.totalAmount,
-              },
+          promotions: {
+            create: pricing.appliedPromotions.map((promotion) => ({
+              promotionId: promotion.id,
+              promotionName: promotion.name,
+              promotionCode: promotion.code,
+              applicationType: promotion.applicationType,
+              discountType: promotion.discountType,
+              scope: promotion.scope,
+              discountValue: promotion.discountValue,
+              eligibleSubtotal: promotion.eligibleSubtotal,
+              discountAmount: promotion.discountAmount,
+              priority: promotion.priority,
+              isStackable: promotion.isStackable,
+            })),
+          },
+
+          statusHistories: {
+            create: {
+              fromStatus: null,
+              toStatus: OrderStatus.PENDING,
+              note: 'Order created',
+              changedBy: userId,
             },
           },
-          include: {
-            items: {
-              include: {
-                options: {
-                  orderBy: {
-                    position: 'asc',
-                  },
+
+          payments: {
+            create: {
+              method: dto.paymentMethod,
+              amount: pricing.totalAmount,
+            },
+          },
+        },
+        include: {
+          items: {
+            include: {
+              options: {
+                orderBy: {
+                  position: 'asc',
                 },
               },
             },
-            promotions: true,
-            payments: true,
-            statusHistories: {
-              orderBy: {
-                createdAt: 'asc',
-              },
+          },
+          promotions: true,
+          payments: true,
+          statusHistories: {
+            orderBy: {
+              createdAt: 'asc',
             },
           },
-        });
+        },
+      });
 
-        const stockAdjustments = new Map<
-          string,
-          {
-            variantId: string;
-            variantName: string;
-            quantity: number;
-            stockBefore: number;
-          }
-        >();
+      const stockAdjustments = new Map<
+        string,
+        {
+          variantId: string;
+          variantName: string;
+          quantity: number;
+          stockBefore: number;
+        }
+      >();
 
-        for (const item of cart.items) {
-          if (!item.variant.trackStock) {
-            continue;
-          }
-
-          const existingAdjustment = stockAdjustments.get(item.variant.id);
-
-          if (existingAdjustment) {
-            existingAdjustment.quantity += item.quantity;
-            continue;
-          }
-
-          stockAdjustments.set(item.variant.id, {
-            variantId: item.variant.id,
-            variantName: item.variant.name,
-            quantity: item.quantity,
-            stockBefore: item.variant.stock,
-          });
+      for (const item of cart.items) {
+        if (!item.variant.trackStock) {
+          continue;
         }
 
-        await Promise.all(
-          [...stockAdjustments.values()].map(async (adjustment) => {
-            const updateResult = await transaction.productVariant.updateMany({
-              where: {
-                id: adjustment.variantId,
-                trackStock: true,
-                stock: {
-                  gte: adjustment.quantity,
-                },
-              },
-              data: {
-                stock: {
-                  decrement: adjustment.quantity,
-                },
-              },
-            });
+        const existingAdjustment = stockAdjustments.get(item.variant.id);
 
-            if (updateResult.count !== 1) {
-              throw new BadRequestException(
-                `Insufficient stock for variant "${adjustment.variantName}"`,
-              );
-            }
+        if (existingAdjustment) {
+          existingAdjustment.quantity += item.quantity;
+          continue;
+        }
 
-            await transaction.stockMovement.create({
-              data: {
-                variantId: adjustment.variantId,
-                type: StockMovementType.SALE,
-                quantityChange: -adjustment.quantity,
-                stockBefore: adjustment.stockBefore,
-                stockAfter: adjustment.stockBefore - adjustment.quantity,
-                referenceType: 'ORDER',
-                referenceId: order.id,
-                note: `Stock reduced for order ${order.orderNumber}`,
-                createdBy: userId,
-              },
-            });
-          }),
-        );
+        stockAdjustments.set(item.variant.id, {
+          variantId: item.variant.id,
+          variantName: item.variant.name,
+          quantity: item.quantity,
+          stockBefore: item.variant.stock,
+        });
+      }
 
-        await Promise.all([
-          transaction.cartItem.deleteMany({
+      await Promise.all(
+        [...stockAdjustments.values()].map(async (adjustment) => {
+          const updateResult = await transaction.productVariant.updateMany({
             where: {
-              cartId: cart.id,
-            },
-          }),
-
-          transaction.cart.update({
-            where: {
-              id: cart.id,
+              id: adjustment.variantId,
+              trackStock: true,
+              stock: {
+                gte: adjustment.quantity,
+              },
             },
             data: {
-              couponPromotionId: null,
+              stock: {
+                decrement: adjustment.quantity,
+              },
             },
-          }),
-        ]);
+          });
 
-        return order;
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      },
-    );
+          if (updateResult.count !== 1) {
+            throw new BadRequestException(
+              `Insufficient stock for variant "${adjustment.variantName}"`,
+            );
+          }
+
+          await transaction.stockMovement.create({
+            data: {
+              variantId: adjustment.variantId,
+              type: StockMovementType.SALE,
+              quantityChange: -adjustment.quantity,
+              stockBefore: adjustment.stockBefore,
+              stockAfter: adjustment.stockBefore - adjustment.quantity,
+              referenceType: 'ORDER',
+              referenceId: order.id,
+              note: `Stock reduced for order ${order.orderNumber}`,
+              createdBy: userId,
+            },
+          });
+        }),
+      );
+
+      await Promise.all([
+        transaction.cartItem.deleteMany({
+          where: {
+            cartId: cart.id,
+          },
+        }),
+
+        transaction.cart.update({
+          where: {
+            id: cart.id,
+          },
+          data: {
+            couponPromotionId: null,
+          },
+        }),
+      ]);
+
+      return order;
+    });
   }
 
   async getMyOrders(userId: string, query: OrderQueryDto) {
