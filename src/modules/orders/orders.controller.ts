@@ -13,6 +13,7 @@ import {
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -72,13 +73,19 @@ export class OrdersController {
       'Endpoint khusus admin untuk memproses status order sesuai alur yang diperbolehkan',
   })
   @ApiParam({
-    name: 'ordeId',
+    name: 'orderId',
     description: 'UUID order',
     format: 'uuid',
   })
   @ApiOkResponse({
+    description: 'Status order berhasil diperbarui',
+  })
+  @ApiBadRequestResponse({
     description:
-      'Perpindahan tidak valid, catatan pembatalan tidak tersedia, atau status telah berubah',
+      'Perpindahan status tidak valid, catatan pembatalan tidak tersedia, atau status telah berubah',
+  })
+  @ApiConflictResponse({
+    description: 'Terjadi konflik transaksi. Request dapat dicoba kembali',
   })
   @ApiForbiddenResponse({
     description: 'User sudah login tetapi bukan admin',
@@ -89,7 +96,7 @@ export class OrdersController {
   @Patch('admin/:orderId/status')
   @UseGuards(RolesGuard)
   @Roles('admin')
-  updateStatusOrder(
+  updateOrderStatus(
     @Req() request: AuthenticatedRequest,
     @Param('orderId', new ParseUUIDPipe()) orderId: string,
     @Body() dto: UpdateOrderStatusDto,
@@ -125,6 +132,9 @@ export class OrdersController {
   @ApiNotFoundResponse({
     description: 'Payment tidak ditemukan pada order tersebut',
   })
+  @ApiConflictResponse({
+    description: 'Terjadi konflik transaksi. Request dapat dicoba kembali',
+  })
   @Patch('admin/:orderId/payments/:paymentId/status')
   @UseGuards(RolesGuard)
   @Roles('admin')
@@ -145,7 +155,7 @@ export class OrdersController {
   @ApiOperation({
     summary: 'Mengambil seluruh daftar order',
     description:
-      'Endpoint khusus admin dengan pencarian,filter status, tipe order, status pembayaran, tanggal, dan pagination',
+      'Endpoint khusus admin dengan pencarian, filter status, tipe order, status pembayaran, tanggal, dan pagination',
   })
   @ApiOkResponse({
     description: 'Daftar order berhasil diambil',
@@ -159,7 +169,7 @@ export class OrdersController {
   @Get('admin')
   @UseGuards(RolesGuard)
   @Roles('admin')
-  getOrderForAdmin(@Query() query: AdminOrderQueryDto) {
+  getOrdersForAdmin(@Query() query: AdminOrderQueryDto) {
     return this.ordersService.getOrdersForAdmin(query);
   }
 
@@ -174,7 +184,7 @@ export class OrdersController {
     format: 'uuid',
   })
   @ApiOkResponse({
-    description: 'Detail order berhsil diambil',
+    description: 'Detail order berhasil diambil',
   })
   @ApiForbiddenResponse({
     description: 'User sudah login tetapi bukan admin',
@@ -235,6 +245,9 @@ export class OrdersController {
     description:
       'Order tidak ditemukan atau bukan milik user yang sedang login',
   })
+  @ApiConflictResponse({
+    description: 'Terjadi konflik transaksi. Request dapat dicoba kembali',
+  })
   @Patch(':orderId/cancel')
   cancelMyOrder(
     @Req() request: AuthenticatedRequest,
@@ -255,6 +268,10 @@ export class OrdersController {
   @ApiBadRequestResponse({
     description:
       'Cart kosong, produk tidak tersedia, stok tidak mencukupi, promo tidak valid, atau data checkout tidak sesuai',
+  })
+  @ApiConflictResponse({
+    description:
+      'Terjadi konflik transaksi saat memproses checkout. Request dapat dicoba kembali',
   })
   @Post('checkout')
   checkout(@Req() request: AuthenticatedRequest, @Body() dto: CreateOrderDto) {
