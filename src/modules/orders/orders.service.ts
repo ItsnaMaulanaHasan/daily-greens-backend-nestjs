@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -727,7 +728,7 @@ export class OrdersService {
         );
       }
 
-      await this.restoredOrderStock(
+      await this.restoreOrderStock(
         transaction,
         {
           id: order.id,
@@ -829,7 +830,7 @@ export class OrdersService {
       }
 
       if (dto.status === OrderStatus.CANCELLED) {
-        await this.restoredOrderStock(
+        await this.restoreOrderStock(
           transaction,
           {
             id: order.id,
@@ -1517,7 +1518,7 @@ export class OrdersService {
     }
   }
 
-  private async restoredOrderStock(
+  private async restoreOrderStock(
     transaction: Prisma.TransactionClient,
     order: {
       id: string;
@@ -1686,8 +1687,14 @@ export class OrdersService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2034';
 
-      if (!isTransactionConflict || attempt >= 3) {
+      if (!isTransactionConflict) {
         throw error;
+      }
+
+      if (attempt >= 3) {
+        throw new ConflictException(
+          'The request conflicted with another transaction. Please try again',
+        );
       }
 
       return this.runSerializableTransaction(operation, attempt + 1);
