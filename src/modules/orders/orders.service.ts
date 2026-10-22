@@ -675,82 +675,77 @@ export class OrdersService {
   }
 
   async cancelMyOrder(userId: string, orderId: string, dto: CancelOrderDto) {
-    await this.prisma.$transaction(
-      async (transaction) => {
-        const order = await transaction.order.findFirst({
-          where: {
-            id: orderId,
-            userId,
-          },
-          select: {
-            id: true,
-            orderNumber: true,
-            status: true,
-            paymentStatus: true,
-          },
-        });
-
-        if (!order) {
-          throw new NotFoundException('Order not found');
-        }
-
-        if (order.status !== OrderStatus.PENDING) {
-          throw new BadRequestException(
-            'Only pending orders can be cancelled by customer',
-          );
-        }
-
-        if (
-          order.paymentStatus === PaymentStatus.PAID ||
-          order.paymentStatus === PaymentStatus.PARTIALLY_REFUNDED
-        ) {
-          throw new BadRequestException(
-            'Paid orders cannot be cancelled before the refund process is completed',
-          );
-        }
-
-        const updateResult = await transaction.order.updateMany({
-          where: {
-            id: order.id,
-            userId,
-            status: OrderStatus.PENDING,
-          },
-          data: {
-            status: OrderStatus.CANCELLED,
-            cancelledAt: new Date(),
-            cancellationReason: dto.reason,
-          },
-        });
-
-        if (updateResult.count !== 1) {
-          throw new BadRequestException(
-            'Order status has changed and can no longer be cancelled',
-          );
-        }
-
-        await this.restoredOrderStock(
-          transaction,
-          {
-            id: order.id,
-            orderNumber: order.orderNumber,
-          },
+    await this.runSerializableTransaction(async (transaction) => {
+      const order = await transaction.order.findFirst({
+        where: {
+          id: orderId,
           userId,
-        );
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          paymentStatus: true,
+        },
+      });
 
-        await transaction.orderStatusHistory.create({
-          data: {
-            orderId: order.id,
-            fromStatus: OrderStatus.PENDING,
-            toStatus: OrderStatus.CANCELLED,
-            note: dto.reason,
-            changedBy: userId,
-          },
-        });
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      },
-    );
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      if (order.status !== OrderStatus.PENDING) {
+        throw new BadRequestException(
+          'Only pending orders can be cancelled by customer',
+        );
+      }
+
+      if (
+        order.paymentStatus === PaymentStatus.PAID ||
+        order.paymentStatus === PaymentStatus.PARTIALLY_REFUNDED
+      ) {
+        throw new BadRequestException(
+          'Paid orders cannot be cancelled before the refund process is completed',
+        );
+      }
+
+      const updateResult = await transaction.order.updateMany({
+        where: {
+          id: order.id,
+          userId,
+          status: OrderStatus.PENDING,
+        },
+        data: {
+          status: OrderStatus.CANCELLED,
+          cancelledAt: new Date(),
+          cancellationReason: dto.reason,
+        },
+      });
+
+      if (updateResult.count !== 1) {
+        throw new BadRequestException(
+          'Order status has changed and can no longer be cancelled',
+        );
+      }
+
+      await this.restoredOrderStock(
+        transaction,
+        {
+          id: order.id,
+          orderNumber: order.orderNumber,
+        },
+        userId,
+      );
+
+      await transaction.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          fromStatus: OrderStatus.PENDING,
+          toStatus: OrderStatus.CANCELLED,
+          note: dto.reason,
+          changedBy: userId,
+        },
+      });
+    });
 
     return this.getMyOrderById(userId, orderId);
   }
@@ -760,127 +755,118 @@ export class OrdersService {
     orderId: string,
     dto: UpdateOrderStatusDto,
   ) {
-    return this.prisma.$transaction(
-      async (transaction) => {
-        const order = await transaction.order.findUnique({
-          where: {
-            id: orderId,
-          },
-          select: {
-            id: true,
-            orderNumber: true,
-            status: true,
-            orderType: true,
-            paymentStatus: true,
-          },
-        });
+    return this.runSerializableTransaction(async (transaction) => {
+      const order = await transaction.order.findUnique({
+        where: {
+          id: orderId,
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          orderType: true,
+          paymentStatus: true,
+        },
+      });
 
-        if (!order) {
-          throw new NotFoundException('Order not found');
-        }
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
 
-        this.validateStatusTransition(
-          order.status,
-          dto.status,
-          order.orderType,
+      this.validateStatusTransition(order.status, dto.status, order.orderType);
+
+      if (
+        dto.status === OrderStatus.CANCELLED &&
+        (order.paymentStatus === PaymentStatus.PAID ||
+          order.paymentStatus === PaymentStatus.PARTIALLY_REFUNDED)
+      ) {
+        throw new BadRequestException(
+          'Paid orders cannot be cancelled before the refund process is completed',
         );
+      }
 
-        if (
-          dto.status === OrderStatus.CANCELLED &&
-          (order.paymentStatus === PaymentStatus.PAID ||
-            order.paymentStatus === PaymentStatus.PARTIALLY_REFUNDED)
-        ) {
-          throw new BadRequestException(
-            'Paid orders cannot be cancelled before the refund process is completed',
-          );
-        }
+      const note = dto.note?.trim() || null;
 
-        const note = dto.note?.trim() || null;
+      if (dto.status === OrderStatus.CANCELLED && note === null) {
+        throw new BadRequestException('Cancellation note is required');
+      }
 
-        if (dto.status === OrderStatus.CANCELLED && note === null) {
-          throw new BadRequestException('Cancellation note is required');
-        }
+      const changedAt = new Date();
 
-        const changedAt = new Date();
+      const updateResult = await transaction.order.updateMany({
+        where: {
+          id: order.id,
+          status: order.status,
+        },
+        data: {
+          status: dto.status,
 
-        const updateResult = await transaction.order.updateMany({
-          where: {
+          ...(dto.status === OrderStatus.CONFIRMED
+            ? {
+                confirmedAt: changedAt,
+              }
+            : {}),
+
+          ...(dto.status === OrderStatus.COMPLETED
+            ? {
+                completedAt: changedAt,
+              }
+            : {}),
+
+          ...(dto.status === OrderStatus.CANCELLED
+            ? {
+                cancelledAt: changedAt,
+                cancellationReason: note,
+              }
+            : {}),
+        },
+      });
+
+      if (updateResult.count !== 1) {
+        throw new BadRequestException(
+          'Order status has changed. Please reload the order and try again',
+        );
+      }
+
+      if (dto.status === OrderStatus.CANCELLED) {
+        await this.restoredOrderStock(
+          transaction,
+          {
             id: order.id,
-            status: order.status,
+            orderNumber: order.orderNumber,
           },
-          data: {
-            status: dto.status,
+          adminUserId,
+        );
+      }
 
-            ...(dto.status === OrderStatus.CONFIRMED
-              ? {
-                  confirmedAt: changedAt,
-                }
-              : {}),
+      await transaction.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          fromStatus: order.status,
+          toStatus: dto.status,
+          note,
+          changedBy: adminUserId,
+        },
+      });
 
-            ...(dto.status === OrderStatus.COMPLETED
-              ? {
-                  completedAt: changedAt,
-                }
-              : {}),
-
-            ...(dto.status === OrderStatus.CANCELLED
-              ? {
-                  cancelledAt: changedAt,
-                  cancellationReason: note,
-                }
-              : {}),
-          },
-        });
-
-        if (updateResult.count !== 1) {
-          throw new BadRequestException(
-            'Order status has changed. Please reload the order and try again',
-          );
-        }
-
-        if (dto.status === OrderStatus.CANCELLED) {
-          await this.restoredOrderStock(
-            transaction,
-            {
-              id: order.id,
-              orderNumber: order.orderNumber,
-            },
-            adminUserId,
-          );
-        }
-
-        await transaction.orderStatusHistory.create({
-          data: {
-            orderId: order.id,
-            fromStatus: order.status,
-            toStatus: dto.status,
-            note,
-            changedBy: adminUserId,
-          },
-        });
-
-        return transaction.order.findUnique({
-          where: {
-            id: order.id,
-          },
-          select: {
-            id: true,
-            orderNumber: true,
-            status: true,
-            orderType: true,
-            paymentStatus: true,
-            confirmedAt: true,
-            completedAt: true,
-            cancelledAt: true,
-            cancellationReason: true,
-            updatedAt: true,
-          },
-        });
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      },
-    );
+      return transaction.order.findUnique({
+        where: {
+          id: order.id,
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          orderType: true,
+          paymentStatus: true,
+          confirmedAt: true,
+          completedAt: true,
+          cancelledAt: true,
+          cancellationReason: true,
+          updatedAt: true,
+        },
+      });
+    });
   }
 
   async updatePaymentStatus(
@@ -889,127 +875,122 @@ export class OrdersService {
     paymentId: string,
     dto: UpdatePaymentStatusDto,
   ) {
-    return this.prisma.$transaction(
-      async (transaction) => {
-        const payment = await transaction.payment.findFirst({
-          where: {
-            id: paymentId,
-            orderId,
-          },
-          select: {
-            id: true,
-            orderId: true,
-            method: true,
-            status: true,
-            amount: true,
-            refundedAmount: true,
-            metadata: true,
-            order: {
-              select: {
-                status: true,
-              },
+    return this.runSerializableTransaction(async (transaction) => {
+      const payment = await transaction.payment.findFirst({
+        where: {
+          id: paymentId,
+          orderId,
+        },
+        select: {
+          id: true,
+          orderId: true,
+          method: true,
+          status: true,
+          amount: true,
+          refundedAmount: true,
+          metadata: true,
+          order: {
+            select: {
+              status: true,
             },
           },
-        });
+        },
+      });
 
-        if (!payment) {
-          throw new NotFoundException('Payment not found');
-        }
+      if (!payment) {
+        throw new NotFoundException('Payment not found');
+      }
 
-        if (payment.order.status === OrderStatus.CANCELLED) {
-          throw new BadRequestException(
-            'Payment status of a cancelled order cannot be changed',
-          );
-        }
+      if (payment.order.status === OrderStatus.CANCELLED) {
+        throw new BadRequestException(
+          'Payment status of a cancelled order cannot be changed',
+        );
+      }
 
-        this.validatePaymentStatusTransition(payment.status, dto.status);
+      this.validatePaymentStatusTransition(payment.status, dto.status);
 
-        const note = dto.note?.trim() || null;
-        const changedAt = new Date();
+      const note = dto.note?.trim() || null;
+      const changedAt = new Date();
 
-        const existingMetadata =
-          payment.metadata !== null &&
-          typeof payment.metadata === 'object' &&
-          !Array.isArray(payment.metadata)
-            ? payment.metadata
-            : {};
+      const existingMetadata =
+        payment.metadata !== null &&
+        typeof payment.metadata === 'object' &&
+        !Array.isArray(payment.metadata)
+          ? payment.metadata
+          : {};
 
-        const metadata: Prisma.InputJsonObject = {
-          ...existingMetadata,
-          ...(note !== null
+      const metadata: Prisma.InputJsonObject = {
+        ...existingMetadata,
+        ...(note !== null
+          ? {
+              statusNote: note,
+            }
+          : {}),
+        statusUpdatedBy: adminUserId,
+        statusUpdatedAt: changedAt.toISOString(),
+      };
+
+      const updateResult = await transaction.payment.updateMany({
+        where: {
+          id: payment.id,
+          orderId,
+          status: payment.status,
+        },
+        data: {
+          status: dto.status,
+          metadata,
+
+          ...(dto.status === PaymentStatus.PAID
             ? {
-                statusNote: note,
+                paidAt: changedAt,
+                failedAt: null,
               }
             : {}),
-          statusUpdatedBy: adminUserId,
-          statusUpdatedAt: changedAt.toISOString(),
-        };
 
-        const updateResult = await transaction.payment.updateMany({
-          where: {
-            id: payment.id,
-            orderId,
-            status: payment.status,
-          },
-          data: {
-            status: dto.status,
-            metadata,
+          ...(dto.status === PaymentStatus.FAILED
+            ? {
+                paidAt: null,
+                failedAt: changedAt,
+              }
+            : {}),
 
-            ...(dto.status === PaymentStatus.PAID
-              ? {
-                  paidAt: changedAt,
-                  failedAt: null,
-                }
-              : {}),
+          ...(dto.status === PaymentStatus.PENDING
+            ? {
+                paidAt: null,
+                failedAt: null,
+              }
+            : {}),
+        },
+      });
 
-            ...(dto.status === PaymentStatus.FAILED
-              ? {
-                  paidAt: null,
-                  failedAt: changedAt,
-                }
-              : {}),
+      if (updateResult.count !== 1) {
+        throw new BadRequestException(
+          'Payment status has changed. Please reload the order and try again',
+        );
+      }
 
-            ...(dto.status === PaymentStatus.PENDING
-              ? {
-                  paidAt: null,
-                  failedAt: null,
-                }
-              : {}),
-          },
-        });
+      await transaction.order.update({
+        where: {
+          id: orderId,
+        },
+        data: {
+          paymentStatus: dto.status,
+        },
+      });
 
-        if (updateResult.count !== 1) {
-          throw new BadRequestException(
-            'Payment status has changed. Please reload the order and try again',
-          );
-        }
-
-        await transaction.order.update({
-          where: {
-            id: orderId,
-          },
-          data: {
-            paymentStatus: dto.status,
-          },
-        });
-
-        return {
-          id: payment.id,
-          orderId: payment.orderId,
-          method: payment.method,
-          previousStatus: payment.status,
-          status: dto.status,
-          amount: Number(payment.amount),
-          refundedAmount: Number(payment.refundedAmount),
-          note,
-          paidAt: dto.status === PaymentStatus.PAID ? changedAt : null,
-          failedAt: dto.status === PaymentStatus.FAILED ? changedAt : null,
-        };
-      },
-      {
-        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-      },
-    );
+      return {
+        id: payment.id,
+        orderId: payment.orderId,
+        method: payment.method,
+        previousStatus: payment.status,
+        status: dto.status,
+        amount: Number(payment.amount),
+        refundedAmount: Number(payment.refundedAmount),
+        note,
+        paidAt: dto.status === PaymentStatus.PAID ? changedAt : null,
+        failedAt: dto.status === PaymentStatus.FAILED ? changedAt : null,
+      };
+    });
   }
 
   private async getValidatedCheckoutCart(
