@@ -78,6 +78,18 @@ export class CreateAddressDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
+  provience: string;
+
+  @ApiProperty({
+    example: 'Jakarta Pusat',
+    maxLength: 100,
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
   city: string;
 
   @ApiProperty({
