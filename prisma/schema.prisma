@@ -178,7 +178,7 @@ model UserAddress {
   recipientPhone String @map("recipient_phone") @db.VarChar(20)
 
   addressLine String  @map("address_line") @db.Text
-  provience   String  @db.VarChar(100)
+  province    String  @db.VarChar(100)
   city        String  @db.VarChar(100)
   district    String  @db.VarChar(100)
   village     String? @db.VarChar(100)
@@ -190,9 +190,9 @@ model UserAddress {
   note      String? @db.Text
   isDefault Boolean @default(false) @map("is_default")
 
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-  deletedAt DateTime @map("deleted_at") @db.Timestamptz()
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz()
 
   // relations
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
