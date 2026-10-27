@@ -345,6 +345,8 @@ export class AddressesService {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+
+    return this.getMyAddressesById(userId, addressId);
   }
 
   private validateCoordinate(latitude?: number, longitude?: number): void {
