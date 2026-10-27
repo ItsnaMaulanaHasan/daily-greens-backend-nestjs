@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { CreateAddressDto } from './dto/create-address.dto';
@@ -148,6 +152,72 @@ export class AddressesService {
               },
         };
       }),
+    };
+  }
+
+  async getMyAddressesById(userId: string, addressId: string) {
+    const address = await this.prisma.userAddress.findFirst({
+      where: {
+        id: addressId,
+        userId,
+        deletedAt: null,
+      },
+    });
+
+    if (!address) {
+      throw new NotFoundException('Address not found');
+    }
+
+    const deliveryMapping = await this.prisma.deliveryZonePostalCode.findFirst({
+      where: {
+        postalCode: address.postalCode,
+        zone: {
+          is: {
+            isActive: true,
+            deletedAt: null,
+          },
+        },
+      },
+      select: {
+        zone: {
+          select: {
+            id: true,
+            name: true,
+            deliveryFee: true,
+            minimumOrderAmount: true,
+            freeDeliveryThreshold: true,
+            estimatedMinMinutes: true,
+            extimatedMaxMinutes: true,
+          },
+        },
+      },
+    });
+
+    const deliveryZone = deliveryMapping?.zone ?? null;
+
+    return {
+      ...address,
+      latitude: address.latitude === null ? null : Number(address.latitude),
+      longitude: address.longitude === null ? null : Number(address.longitude),
+
+      delivery:
+        deliveryZone !== null
+          ? {
+              isAvailable: true,
+              zone: {
+                ...deliveryZone,
+                deliveryFee: Number(deliveryZone.deliveryFee),
+                minimumOrderAmount: Number(deliveryZone.minimumOrderAmount),
+                freeDeliveryThreshold:
+                  deliveryZone.freeDeliveryThreshold === null
+                    ? null
+                    : Number(deliveryZone.freeDeliveryThreshold),
+              },
+            }
+          : {
+              isAvailable: false,
+              zone: null,
+            },
     };
   }
 
