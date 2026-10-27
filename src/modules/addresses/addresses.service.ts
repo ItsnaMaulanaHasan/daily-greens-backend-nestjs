@@ -65,6 +65,92 @@ export class AddressesService {
     );
   }
 
+  async getMyAddresses(userId: string) {
+    const addresses = await this.prisma.userAddress.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+      },
+      orderBy: [
+        {
+          isDefault: 'desc',
+        },
+        {
+          createdAt: 'desc',
+        },
+      ],
+    });
+
+    const postalCode = [
+      ...new Set(addresses.map((address) => address.postalCode)),
+    ];
+
+    const deliveryMapping =
+      postalCode.length > 0
+        ? await this.prisma.deliveryZonePostalCode.findMany({
+            where: {
+              postalCode: {
+                in: postalCode,
+              },
+              zone: {
+                is: {
+                  isActive: true,
+                  deletedAt: null,
+                },
+              },
+            },
+            select: {
+              postalCode: true,
+              zone: {
+                select: {
+                  id: true,
+                  name: true,
+                  deliveryFee: true,
+                  minimumOrderAmount: true,
+                  freeDeliveryThreshold: true,
+                  estimatedMinMinutes: true,
+                  extimatedMaxMinutes: true,
+                },
+              },
+            },
+          })
+        : [];
+
+    const deliveryZoneByPostalCode = new Map(
+      deliveryMapping.map((mapping) => [mapping.postalCode, mapping.zone]),
+    );
+
+    return {
+      data: addresses.map((address) => {
+        const deliveryZone = deliveryZoneByPostalCode.get(address.postalCode);
+
+        return {
+          ...address,
+          latitude: address.latitude === null ? null : Number(address.latitude),
+          longitude:
+            address.longitude === null ? null : Number(address.longitude),
+          delivery: deliveryZone
+            ? {
+                isAvailable: true,
+                zone: {
+                  ...deliveryZone,
+                  deliveryFee: Number(deliveryZone.deliveryFee),
+                  minimumOrderAmount: Number(deliveryZone.minimumOrderAmount),
+                  freeDeliveryThreshold:
+                    deliveryZone.freeDeliveryThreshold === null
+                      ? null
+                      : Number(deliveryZone.freeDeliveryThreshold),
+                },
+              }
+            : {
+                isAvailable: false,
+                zone: null,
+              },
+        };
+      }),
+    };
+  }
+
   private validateCoordinate(latitude?: number, longitude?: number): void {
     const hasLatitude = latitude != undefined;
     const hasLongitude = longitude != undefined;
