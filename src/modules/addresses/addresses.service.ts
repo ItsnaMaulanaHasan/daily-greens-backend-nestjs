@@ -349,6 +349,74 @@ export class AddressesService {
     return this.getMyAddressesById(userId, addressId);
   }
 
+  async removeMyAddress(userId: string, addressId: string) {
+    await this.prisma.$transaction(
+      async (transaction) => {
+        const address = await transaction.userAddress.findFirst({
+          where: {
+            id: addressId,
+            userId,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            isDefault: true,
+          },
+        });
+
+        if (!address) {
+          throw new NotFoundException('Address not found');
+        }
+
+        if (address.isDefault) {
+          const replacementAddress = await transaction.userAddress.findFirst({
+            where: {
+              userId,
+              id: {
+                not: addressId,
+              },
+              deletedAt: null,
+            },
+            orderBy: {
+              createdAt: 'asc',
+            },
+            select: {
+              id: true,
+            },
+          });
+
+          if (replacementAddress) {
+            await transaction.userAddress.update({
+              where: {
+                id: replacementAddress.id,
+              },
+              data: {
+                isDefault: true,
+              },
+            });
+          }
+        }
+
+        await transaction.userAddress.update({
+          where: {
+            id: addressId,
+          },
+          data: {
+            isDefault: false,
+            deletedAt: new Date(),
+          },
+        });
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+
+    return {
+      message: 'Address deleted successfully',
+    };
+  }
+
   private validateCoordinate(latitude?: number, longitude?: number): void {
     const hasLatitude = latitude != undefined;
     const hasLongitude = longitude != undefined;
