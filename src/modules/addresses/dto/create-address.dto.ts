@@ -78,7 +78,7 @@ export class CreateAddressDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  provience: string;
+  province: string;
 
   @ApiProperty({
     example: 'Jakarta Pusat',
