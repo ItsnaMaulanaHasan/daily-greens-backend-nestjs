@@ -11,6 +11,7 @@ import { ProfilesModule } from './modules/profiles/profiles.module';
 import { PromotionModule } from './modules/promotions/promotion.module';
 import { UsersModule } from './modules/users/users.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
+import { DeliveryZonesModule } from './modules/delivery-zones/delivery-zones.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AddressesModule } from './modules/addresses/addresses.module';
     CartModule,
     OrdersModule,
     AddressesModule,
+    DeliveryZonesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
