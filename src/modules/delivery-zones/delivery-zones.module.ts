@@ -4,6 +4,6 @@ import { DeliveryZonesService } from './delivery-zones.service';
 
 @Module({
   controllers: [DeliveryZonesController],
-  providers: [DeliveryZonesService]
+  providers: [DeliveryZonesService],
 })
 export class DeliveryZonesModule {}
