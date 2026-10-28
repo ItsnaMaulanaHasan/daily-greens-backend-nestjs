@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsInt,
   IsNumber,
   IsOptional,
@@ -126,5 +127,13 @@ export class CreateDeliveryZoneDto {
     each: true,
     message: 'Each postal code must contain exactly 5 digits',
   })
+  postalCode: string[];
+
+  @ApiPropertyOptional({
+    example: true,
+    default: true,
+  })
+  @IsOptional()
+  @IsBoolean()
   isActive?: boolean;
 }
