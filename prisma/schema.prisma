@@ -214,7 +214,7 @@ model DeliveryZone {
   freeDeliveryThreshold Decimal? @map("free_delivery_threshold") @db.Decimal(12, 2)
 
   estimatedMinMinutes Int @map("estimated_min_minutes")
-  extimatedMaxMinutes Int @map("estimated_max_minutes")
+  estimatedMaxMinutes Int @map("estimated_max_minutes")
 
   isActive Boolean @default(true) @map("is_active")
 
