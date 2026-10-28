@@ -6,6 +6,7 @@ import {
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { CreateDeliveryZoneDto } from './dto/create-delivery-zone.dto';
+import { DeliveryZoneQueryDto } from './dto/delivery-zone-query.dto';
 
 @Injectable()
 export class DeliveryZonesService {
@@ -128,6 +129,83 @@ export class DeliveryZonesService {
 
       throw error;
     }
+  }
+
+  async findAllDeliveryZones(query: DeliveryZoneQueryDto) {
+    const skip = (query.page - 1) * query.limit;
+
+    const where: Prisma.DeliveryZoneWhereInput = {
+      deletedAt: null,
+
+      ...(query.search
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                description: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          }
+        : {}),
+
+      ...(query.isActive !== undefined
+        ? {
+            isActive: query.isActive,
+          }
+        : {}),
+    };
+
+    const [deliveryZones, total] = await this.prisma.$transaction([
+      this.prisma.deliveryZone.findMany({
+        where,
+        skip,
+        take: query.limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          postalCodes: {
+            select: {
+              id: true,
+              postalCode: true,
+            },
+            orderBy: {
+              postalCode: 'asc',
+            },
+          },
+        },
+      }),
+
+      this.prisma.deliveryZone.count({
+        where,
+      }),
+    ]);
+
+    return {
+      data: deliveryZones.map((deliveryZones) => ({
+        ...deliveryZones,
+        deliveryFee: Number(deliveryZones.deliveryFee),
+        minimumOrderAmount: Number(deliveryZones.minimumOrderAmount),
+        freeDeliveryThreshold:
+          deliveryZones.freeDeliveryThreshold === null
+            ? null
+            : Number(deliveryZones.freeDeliveryThreshold),
+      })),
+      meta: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
   }
 
   private validateDeliveryRules(rules: {
