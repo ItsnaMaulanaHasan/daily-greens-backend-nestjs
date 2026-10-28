@@ -38,7 +38,7 @@ export class DeliveryZonesService {
             },
           });
 
-          if (!existingName) {
+          if (existingName) {
             throw new ConflictException('Delivery zone name is already in use');
           }
 
