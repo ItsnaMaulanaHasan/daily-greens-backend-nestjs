@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from 'src/common/prisma/prisma.service';
@@ -205,6 +206,40 @@ export class DeliveryZonesService {
         total,
         totalPages: Math.ceil(total / query.limit),
       },
+    };
+  }
+
+  async findDeliveryZoneById(id: string) {
+    const deliveryZone = await this.prisma.deliveryZone.findFirst({
+      where: {
+        id,
+        deletedAt: null,
+      },
+      include: {
+        postalCodes: {
+          select: {
+            id: true,
+            postalCode: true,
+          },
+          orderBy: {
+            postalCode: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!deliveryZone) {
+      throw new NotFoundException('Delivery zone not found');
+    }
+
+    return {
+      ...deliveryZone,
+      deliveryFee: Number(deliveryZone.deliveryFee),
+      minimumOrderAmount: Number(deliveryZone.minimumOrderAmount),
+      freeDeliveryThreshold:
+        deliveryZone.freeDeliveryThreshold === null
+          ? null
+          : Number(deliveryZone.freeDeliveryThreshold),
     };
   }
 
