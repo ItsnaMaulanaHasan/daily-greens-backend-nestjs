@@ -24,7 +24,6 @@ export class CreateDeliveryZoneDto {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
   )
-  @IsOptional()
   @IsString()
   @MaxLength(100)
   name: string;

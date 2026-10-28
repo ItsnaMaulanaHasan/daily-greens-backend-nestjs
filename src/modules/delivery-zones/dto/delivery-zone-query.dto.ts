@@ -28,7 +28,7 @@ export class DeliveryZoneQueryDto {
     description: 'Filter berdasarkan status aktif zona',
   })
   @Transform(({ value }: { value: unknown }) => {
-    if (value === 'string') {
+    if (value === 'true') {
       return true;
     }
 
