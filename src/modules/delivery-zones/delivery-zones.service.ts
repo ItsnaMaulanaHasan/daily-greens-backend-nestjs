@@ -8,6 +8,7 @@ import { Prisma } from 'generated/prisma/client';
 import { PrismaService } from 'src/common/prisma/prisma.service';
 import { CreateDeliveryZoneDto } from './dto/create-delivery-zone.dto';
 import { DeliveryZoneQueryDto } from './dto/delivery-zone-query.dto';
+import { UpdateDeliveryZoneDto } from './dto/update-delivery-zone.dto';
 
 @Injectable()
 export class DeliveryZonesService {
@@ -21,7 +22,7 @@ export class DeliveryZonesService {
       estimatedMinMinutes: dto.estimatedMinMinutes,
     });
 
-    const normalizePostalCode = [
+    const normalizePostalCodess = [
       ...new Set(dto.postalCode.map((postalCode) => postalCode.trim())),
     ];
 
@@ -48,7 +49,7 @@ export class DeliveryZonesService {
             await transaction.deliveryZonePostalCode.findMany({
               where: {
                 postalCode: {
-                  in: normalizePostalCode,
+                  in: normalizePostalCodess,
                 },
               },
               select: {
@@ -86,7 +87,7 @@ export class DeliveryZonesService {
               isActive: dto.isActive ?? true,
 
               postalCodes: {
-                create: normalizePostalCode.map((postalCode) => ({
+                create: normalizePostalCodess.map((postalCode) => ({
                   postalCode,
                 })),
               },
@@ -241,6 +242,195 @@ export class DeliveryZonesService {
           ? null
           : Number(deliveryZone.freeDeliveryThreshold),
     };
+  }
+
+  async updateDeliveryZone(id: string, dto: UpdateDeliveryZoneDto) {
+    const normalizePostalCodes =
+      dto.postalCode !== undefined
+        ? [...new Set(dto.postalCode.map((potalCode) => potalCode.trim()))]
+        : undefined;
+
+    try {
+      const deliveryZone = await this.prisma.$transaction(
+        async (transaction) => {
+          const existingDeliveryZone = await transaction.deliveryZone.findFirst(
+            {
+              where: {
+                id,
+                deletedAt: null,
+              },
+            },
+          );
+
+          if (!existingDeliveryZone) {
+            throw new NotFoundException('Delivery zone not found');
+          }
+
+          const minimumOrderAmount =
+            dto.minimumOrderAmount ??
+            Number(existingDeliveryZone.minimumOrderAmount);
+
+          const freeDeliveryThreshold =
+            dto.freeDeliveryThreshold ??
+            (existingDeliveryZone.freeDeliveryThreshold === null
+              ? null
+              : Number(existingDeliveryZone.freeDeliveryThreshold));
+
+          const estimatedMinMinutes =
+            dto.estimatedMinMinutes ?? existingDeliveryZone.estimatedMinMinutes;
+
+          const estimatedMaxMinutes =
+            dto.estimatedMaxMinutes ?? existingDeliveryZone.estimatedMaxMinutes;
+
+          this.validateDeliveryRules({
+            minimumOrderAmount,
+            freeDeliveryThreshold,
+            estimatedMinMinutes,
+            estimatedMaxMinutes,
+          });
+
+          if (dto.name !== undefined) {
+            const duplicateName = await transaction.deliveryZone.findFirst({
+              where: {
+                id: {
+                  not: id,
+                },
+                deletedAt: null,
+                name: {
+                  equals: dto.name.trim(),
+                  mode: 'insensitive',
+                },
+              },
+              select: {
+                id: true,
+              },
+            });
+
+            if (duplicateName) {
+              throw new ConflictException(
+                'Delivery zone name is already in use',
+              );
+            }
+          }
+
+          if (normalizePostalCodes !== undefined) {
+            const usedPostalCodes =
+              await transaction.deliveryZonePostalCode.findMany({
+                where: {
+                  postalCode: {
+                    in: normalizePostalCodes,
+                  },
+                  zoneId: {
+                    not: id,
+                  },
+                },
+                select: {
+                  postalCode: true,
+                  zone: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              });
+
+            if (usedPostalCodes.length > 0) {
+              const conflicts = usedPostalCodes
+                .map(
+                  (postalCode) =>
+                    `${postalCode.postalCode} (${postalCode.zone.name})`,
+                )
+                .join(', ');
+
+              throw new ConflictException(
+                `Postal codes are already used: ${conflicts}`,
+              );
+            }
+          }
+
+          return transaction.deliveryZone.update({
+            where: {
+              id,
+            },
+            data: {
+              ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+
+              ...(dto.description !== undefined
+                ? { description: dto.description.trim() || null }
+                : {}),
+
+              ...(dto.deliveryFee !== undefined
+                ? { deliveryFee: dto.deliveryFee }
+                : {}),
+
+              ...(dto.minimumOrderAmount !== undefined
+                ? { minimumOrderAmount: dto.minimumOrderAmount }
+                : {}),
+
+              ...(dto.freeDeliveryThreshold !== undefined
+                ? { freeDeliveryThreshold: dto.freeDeliveryThreshold }
+                : {}),
+
+              ...(dto.estimatedMinMinutes !== undefined
+                ? { estimatedMinMinutes: dto.estimatedMinMinutes }
+                : {}),
+
+              ...(dto.estimatedMaxMinutes !== undefined
+                ? { estimatedMaxMinutes: dto.estimatedMaxMinutes }
+                : {}),
+
+              ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+
+              ...(normalizePostalCodes !== undefined
+                ? {
+                    postalCodes: {
+                      deleteMany: {},
+                      create: normalizePostalCodes.map((postalCode) => ({
+                        postalCode,
+                      })),
+                    },
+                  }
+                : {}),
+            },
+            include: {
+              postalCodes: {
+                select: {
+                  id: true,
+                  postalCode: true,
+                },
+                orderBy: {
+                  postalCode: 'asc',
+                },
+              },
+            },
+          });
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        },
+      );
+
+      return {
+        ...deliveryZone,
+        deliveryFee: Number(deliveryZone.deliveryFee),
+        minimumOrderAmount: Number(deliveryZone.minimumOrderAmount),
+        freeDeliveryThreshold:
+          deliveryZone.freeDeliveryThreshold === null
+            ? null
+            : Number(deliveryZone.freeDeliveryThreshold),
+      };
+    } catch (error: unknown) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P202'
+      ) {
+        throw new ConflictException(
+          'One or more postal codes are already used',
+        );
+      }
+
+      throw error;
+    }
   }
 
   private validateDeliveryRules(rules: {
