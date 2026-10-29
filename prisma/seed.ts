@@ -59,6 +59,31 @@ const users = [
   },
 ] as const;
 
+const deliveryZones = [
+  {
+    id: 'a1111111-1111-4111-8111-111111111111',
+    name: 'Jakarta Pusat',
+    description: 'Zona pengiriman untuk wilayah Jakarta Pusat',
+    deliveryFee: 10000,
+    minimumOrderAmount: 50000,
+    freeDeliveryThreshold: 150000,
+    estimatedMinMinutes: 30,
+    estimatedMaxMinutes: 60,
+    postalCodes: ['10110', '10120', '10130'],
+  },
+  {
+    id: 'b2222222-2222-4222-8222-222222222222',
+    name: 'Jakarta Selatan',
+    description: 'Zona pengiriman untuk wilayah Jakarta Selatan',
+    deliveryFee: 15000,
+    minimumOrderAmount: 75000,
+    freeDeliveryThreshold: 200000,
+    estimatedMinMinutes: 45,
+    estimatedMaxMinutes: 90,
+    postalCodes: ['12110', '12120', '12130'],
+  },
+];
+
 function hashPassword(password: string): Promise<string> {
   return argon2.hash(password, {
     type: argon2.argon2id,
@@ -179,22 +204,90 @@ async function seedUsers() {
   }
 }
 
+async function seedDeliveryZones() {
+  return Promise.all(
+    deliveryZones.map((deliveryZone) =>
+      prisma.$transaction(async (transaction) => {
+        const deliveryZoneData = {
+          name: deliveryZone.name,
+          description: deliveryZone.description,
+          deliveryFee: deliveryZone.deliveryFee,
+          minimumOrderAmount: deliveryZone.minimumOrderAmount,
+          freeDeliveryThreshold: deliveryZone.freeDeliveryThreshold,
+          estimatedMinMinutes: deliveryZone.estimatedMinMinutes,
+          estimatedMaxMinutes: deliveryZone.estimatedMaxMinutes,
+          isActive: true,
+          deletedAt: null,
+        };
+
+        await transaction.deliveryZone.upsert({
+          where: {
+            id: deliveryZone.id,
+          },
+          update: deliveryZoneData,
+          create: {
+            id: deliveryZone.id,
+            ...deliveryZoneData,
+          },
+        });
+
+        await transaction.deliveryZonePostalCode.deleteMany({
+          where: {
+            zoneId: deliveryZone.id,
+            postalCode: {
+              notIn: [...deliveryZone.postalCodes],
+            },
+          },
+        });
+
+        await Promise.all(
+          deliveryZone.postalCodes.map((postalCode) =>
+            transaction.deliveryZonePostalCode.upsert({
+              where: {
+                postalCode,
+              },
+              update: {
+                zoneId: deliveryZone.id,
+              },
+              create: {
+                zoneId: deliveryZone.id,
+                postalCode,
+              },
+            }),
+          ),
+        );
+      }),
+    ),
+  );
+}
+
 async function main() {
   await seedRoles();
   await seedPermissions();
   await seedRolePermissions();
   await seedUsers();
+  await seedDeliveryZones();
 
-  const [roleCount, permissionCount, userCount] = await Promise.all([
+  const [
+    roleCount,
+    permissionCount,
+    userCount,
+    deliveryZoneCount,
+    deliveryPostalCodeCount,
+  ] = await Promise.all([
     prisma.role.count(),
     prisma.permission.count(),
     prisma.user.count(),
+    prisma.deliveryZone.count(),
+    prisma.deliveryZonePostalCode.count(),
   ]);
 
   console.log('Database seed completed.');
   console.log(`Roles: ${roleCount}`);
   console.log(`Permissions: ${permissionCount}`);
   console.log(`Users: ${userCount}`);
+  console.log(`Delivery zones: ${deliveryZoneCount}`);
+  console.log(`Delivery postal code: ${deliveryPostalCodeCount}`);
 }
 
 main()
