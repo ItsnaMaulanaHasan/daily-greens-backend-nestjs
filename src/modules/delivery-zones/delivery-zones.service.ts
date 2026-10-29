@@ -433,6 +433,50 @@ export class DeliveryZonesService {
     }
   }
 
+  async deleteDeliveryZone(id: string) {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const deliveryZone = await transaction.deliveryZone.findFirst({
+          where: {
+            id,
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            name: true,
+          },
+        });
+
+        if (!deliveryZone) {
+          throw new NotFoundException('Delivery zone not found');
+        }
+
+        await transaction.deliveryZone.update({
+          where: {
+            id,
+          },
+          data: {
+            isActive: false,
+            deletedAt: new Date(),
+          },
+        });
+
+        await transaction.deliveryZonePostalCode.deleteMany({
+          where: {
+            zoneId: id,
+          },
+        });
+
+        return {
+          message: 'Delivery zone deleted successfully',
+        };
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      },
+    );
+  }
+
   private validateDeliveryRules(rules: {
     minimumOrderAmount: number;
     freeDeliveryThreshold: number | null;
