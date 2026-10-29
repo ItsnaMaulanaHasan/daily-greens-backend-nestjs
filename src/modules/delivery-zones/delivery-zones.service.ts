@@ -477,6 +477,58 @@ export class DeliveryZonesService {
     );
   }
 
+  async checkDeliveryAvailability(postalCode: string) {
+    const deliveryMapping = await this.prisma.deliveryZonePostalCode.findFirst({
+      where: {
+        postalCode,
+        zone: {
+          is: {
+            isActive: true,
+            deletedAt: null,
+          },
+        },
+      },
+      select: {
+        zone: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            deliveryFee: true,
+            minimumOrderAmount: true,
+            freeDeliveryThreshold: true,
+            estimatedMinMinutes: true,
+            estimatedMaxMinutes: true,
+          },
+        },
+      },
+    });
+
+    if (!deliveryMapping) {
+      return {
+        postalCode,
+        isAvailable: false,
+        deliveryZone: null,
+      };
+    }
+
+    const deliveryZone = deliveryMapping.zone;
+
+    return {
+      postalCode,
+      isAvailable: true,
+      deliveryZone: {
+        ...deliveryZone,
+        deliveryFee: Number(deliveryZone.deliveryFee),
+        minimumOrderAmount: Number(deliveryZone.minimumOrderAmount),
+        freeDeliveryThreshold:
+          deliveryZone.freeDeliveryThreshold === null
+            ? null
+            : Number(deliveryZone.freeDeliveryThreshold),
+      },
+    };
+  }
+
   private validateDeliveryRules(rules: {
     minimumOrderAmount: number;
     freeDeliveryThreshold: number | null;
