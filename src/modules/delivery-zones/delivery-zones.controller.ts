@@ -27,6 +27,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { DeliveryZonesService } from './delivery-zones.service';
 import { CreateDeliveryZoneDto } from './dto/create-delivery-zone.dto';
+import { DeliveryPostalCodeParamDto } from './dto/delivery-postal-code-param.dto';
 import { DeliveryZoneQueryDto } from './dto/delivery-zone-query.dto';
 import { UpdateDeliveryZoneDto } from './dto/update-delivery-zone.dto';
 
@@ -82,6 +83,29 @@ export class DeliveryZonesController {
   @Roles('admin')
   findAllDeliveryZones(@Query() query: DeliveryZoneQueryDto) {
     return this.deliveryZonesService.findAllDeliveryZones(query);
+  }
+
+  @ApiOperation({
+    summary: 'Mengecek ketersediaan pengiriman berdasarkan kode pos',
+    description:
+      'Endpoint publik untuk mengecek apakah suatu kode pos termasuk delivery zone yang aktif',
+  })
+  @ApiParam({
+    name: 'postalCode',
+    example: 10110,
+    description: 'Kode pos tujuan pengiriman, tepat lima digit',
+  })
+  @ApiOkResponse({
+    description: 'Ketersediaan pengiriman berhasil diperiksa',
+  })
+  @ApiBadRequestResponse({
+    description: 'Format kode pos tidak valid',
+  })
+  @Get('check/:postalCode')
+  checkDeliveryAvailability(@Param() params: DeliveryPostalCodeParamDto) {
+    return this.deliveryZonesService.checkDeliveryAvailability(
+      params.postalCode,
+    );
   }
 
   @ApiOperation({
