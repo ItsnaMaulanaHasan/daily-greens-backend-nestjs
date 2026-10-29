@@ -52,6 +52,19 @@ interface CheckoutPricing {
   appliedPromotions: AppliedCheckoutPromotion[];
 }
 
+interface CheckoutDeliveryDetails {
+  deliveryAddressId: string | null;
+  deliveryZoneId: string | null;
+  deliveryAddress: string | null;
+  deliveryPostalCode: string | null;
+  deliveryZoneName: string | null;
+  estimatedDeliveryMinMinutes: number | null;
+  estimatedDeliveryMaxMinutes: number | null;
+  baseDeliveryFee: number;
+  minimumOrderAmount: number;
+  freeDeliveryThreshold: number | null;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -1650,6 +1663,119 @@ export class OrdersService {
         `Delivery order must be changed to OUT_FOR_DELIVERY before COMPLETED`,
       );
     }
+  }
+
+  private async getCheckoutDeliveryDetails(
+    transaction: Prisma.TransactionClient,
+    userId: string,
+    dto: CreateOrderDto,
+  ): Promise<CheckoutDeliveryDetails> {
+    if (dto.orderType !== OrderType.DELIVERY) {
+      return {
+        deliveryAddressId: null,
+        deliveryZoneId: null,
+        deliveryAddress: null,
+        deliveryPostalCode: null,
+        deliveryZoneName: null,
+        estimatedDeliveryMinMinutes: null,
+        estimatedDeliveryMaxMinutes: null,
+        baseDeliveryFee: 0,
+        minimumOrderAmount: 0,
+        freeDeliveryThreshold: null,
+      };
+    }
+
+    if (!dto.deliveryAddressId) {
+      throw new BadRequestException(
+        'deliveryAddressId is reuqired for delivery orders',
+      );
+    }
+
+    const address = await transaction.userAddress.findFirst({
+      where: {
+        id: dto.deliveryAddressId,
+        userId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        addressLine: true,
+        province: true,
+        city: true,
+        district: true,
+        village: true,
+        postalCode: true,
+      },
+    });
+
+    if (!address) {
+      throw new NotFoundException(
+        'Delivery address was not found or does not belong to the current user',
+      );
+    }
+
+    const deliveryMapping = await transaction.deliveryZonePostalCode.findFirst({
+      where: {
+        postalCode: address.postalCode,
+        zone: {
+          is: {
+            isActive: true,
+            deletedAt: null,
+          },
+        },
+      },
+      select: {
+        zone: {
+          select: {
+            id: true,
+            name: true,
+            deliveryFee: true,
+            minimumOrderAmount: true,
+            freeDeliveryThreshold: true,
+            estimatedMinMinutes: true,
+            estimatedMaxMinutes: true,
+          },
+        },
+      },
+    });
+
+    if (!deliveryMapping) {
+      throw new BadRequestException(
+        'Delivery is not available for the selected address',
+      );
+    }
+
+    const deliveryZone = deliveryMapping.zone;
+
+    const deliveryAddress = [
+      address.addressLine,
+      address.village,
+      address.district,
+      address.city,
+      address.province,
+      address.postalCode,
+    ]
+      .filter(
+        (addressPart): addressPart is string =>
+          typeof addressPart === 'string' && addressPart.length > 0,
+      )
+      .join(', ');
+
+    return {
+      deliveryAddressId: address.id,
+      deliveryZoneId: deliveryZone.id,
+      deliveryAddress,
+      deliveryPostalCode: address.postalCode,
+      deliveryZoneName: deliveryZone.name,
+      estimatedDeliveryMinMinutes: deliveryZone.estimatedMinMinutes,
+      estimatedDeliveryMaxMinutes: deliveryZone.estimatedMaxMinutes,
+      baseDeliveryFee: Number(deliveryZone.deliveryFee),
+      minimumOrderAmount: Number(deliveryZone.minimumOrderAmount),
+      freeDeliveryThreshold:
+        deliveryZone.freeDeliveryThreshold === null
+          ? null
+          : Number(deliveryZone.freeDeliveryThreshold),
+    };
   }
 
   private validateCheckoutRequest(dto: CreateOrderDto): string | null {
