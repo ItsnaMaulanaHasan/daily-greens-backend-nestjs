@@ -44,16 +44,26 @@ const roles = [
   },
 ] as const;
 
+function getRequiredSeedEnvironmentVariable(name: string): string {
+  const value = process.env[name];
+
+  if (!value) {
+    throw new Error(`${name} is required to run the database seed`);
+  }
+
+  return value;
+}
+
 const users = [
   {
     email: process.env.SEED_ADMIN_EMAIL ?? 'admin@dailygreens.local',
-    password: process.env.SEED_ADMIN_PASSWORD ?? 'Admin@12345',
+    password: getRequiredSeedEnvironmentVariable('SEED_ADMIN_PASSWORD'),
     roleName: 'admin',
     fullName: 'Daily Greens Admin',
   },
   {
     email: process.env.SEED_CUSTOMER_EMAIL ?? 'customer@dailygreens.local',
-    password: process.env.SEED_CUSTOMER_PASSWORD ?? 'Customer@12345',
+    password: getRequiredSeedEnvironmentVariable('SEED_CUSTOMER_PASSWORD'),
     roleName: 'customer',
     fullName: 'Daily Greens Customer',
   },
@@ -128,80 +138,91 @@ async function seedPermissions() {
 }
 
 async function seedRolePermissions() {
-  for (const [roleName, permissionNames] of Object.entries(permissionsByRole)) {
-    const role = await prisma.role.findUniqueOrThrow({
-      where: {
-        name: roleName,
-      },
-    });
+  return Promise.all(
+    Object.entries(permissionsByRole).map(
+      async ([roleName, permissionName]) => {
+        const [role, permissions] = await Promise.all([
+          prisma.role.findUniqueOrThrow({
+            where: {
+              name: roleName,
+            },
+          }),
 
-    const permissions = await prisma.permission.findMany({
-      where: {
-        name: {
-          in: [...permissionNames],
-        },
-      },
-    });
+          prisma.permission.findMany({
+            where: {
+              name: {
+                in: [...permissionName],
+              },
+            },
+          }),
+        ]);
 
-    await Promise.all(
-      permissions.map((permission) =>
-        prisma.rolePermission.upsert({
-          where: {
-            permissionId: permission.id,
-          },
-          update: {
-            roleId: role.id,
-          },
-          create: {
-            roleId: role.id,
-            permissionId: permission.id,
-          },
-        }),
-      ),
-    );
-  }
+        return Promise.all(
+          permissions.map((permission) =>
+            prisma.rolePermission.upsert({
+              where: {
+                permissionId: permission.id,
+              },
+              update: {
+                roleId: role.id,
+              },
+              create: {
+                roleId: role.id,
+                permissionId: permission.id,
+              },
+            }),
+          ),
+        );
+      },
+    ),
+  );
 }
 
 async function seedUsers() {
-  for (const user of users) {
-    const passwordHash = await hashPassword(user.password);
-    const role = await prisma.role.findUniqueOrThrow({
-      where: {
-        name: user.roleName,
-      },
-    });
+  return Promise.all(
+    users.map(async (user) => {
+      const [passwordHash, role] = await Promise.all([
+        hashPassword(user.password),
 
-    const createdUser = await prisma.user.upsert({
-      where: {
-        email: user.email,
-      },
-      update: {
-        passwordHash,
-        roleId: role.id,
-        status: UserStatus.ACTIVE,
-      },
-      create: {
-        email: user.email,
-        passwordHash,
-        roleId: role.id,
-        status: UserStatus.ACTIVE,
-        emailVerifiedAt: new Date(),
-      },
-    });
+        prisma.role.findUniqueOrThrow({
+          where: {
+            name: user.roleName,
+          },
+        }),
+      ]);
 
-    await prisma.profile.upsert({
-      where: {
-        userId: createdUser.id,
-      },
-      update: {
-        fullName: user.fullName,
-      },
-      create: {
-        userId: createdUser.id,
-        fullName: user.fullName,
-      },
-    });
-  }
+      const createdUser = await prisma.user.upsert({
+        where: {
+          email: user.email,
+        },
+        update: {
+          passwordHash,
+          roleId: role.id,
+          status: UserStatus.ACTIVE,
+        },
+        create: {
+          email: user.email,
+          passwordHash,
+          roleId: role.id,
+          status: UserStatus.ACTIVE,
+          emailVerifiedAt: new Date(),
+        },
+      });
+
+      return prisma.profile.upsert({
+        where: {
+          userId: createdUser.id,
+        },
+        update: {
+          fullName: user.fullName,
+        },
+        create: {
+          userId: createdUser.id,
+          fullName: user.fullName,
+        },
+      });
+    }),
+  );
 }
 
 async function seedDeliveryZones() {
