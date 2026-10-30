@@ -30,7 +30,7 @@ import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { UpdatePaymentStatusDto } from './dto/update-payment-status.dto';
 
-interface AppliedCheckoutPromotion {
+export interface AppliedCheckoutPromotion {
   id: string;
   name: string;
   code: string | null;
