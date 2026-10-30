@@ -65,6 +65,11 @@ interface CheckoutDeliveryDetails {
   freeDeliveryThreshold: number | null;
 }
 
+interface CheckoutDeliveryRequest {
+  orderType: OrderType;
+  deliveryAddressId?: string;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(
@@ -1720,7 +1725,7 @@ export class OrdersService {
   private async getCheckoutDeliveryDetails(
     transaction: Prisma.TransactionClient,
     userId: string,
-    dto: CreateOrderDto,
+    dto: CheckoutDeliveryRequest,
   ): Promise<CheckoutDeliveryDetails> {
     if (dto.orderType !== OrderType.DELIVERY) {
       return {
@@ -1835,6 +1840,10 @@ export class OrdersService {
       throw new BadRequestException('Only CASH payment is currently available');
     }
 
+    this.validateCheckoutDeliveryRequest(dto);
+  }
+
+  private validateCheckoutDeliveryRequest(dto: CheckoutDeliveryRequest): void {
     if (dto.orderType === OrderType.DELIVERY && !dto.deliveryAddressId) {
       throw new BadRequestException(
         'deliveryAddressId is required for delivery orders',
@@ -1846,7 +1855,7 @@ export class OrdersService {
       dto.deliveryAddressId !== undefined
     ) {
       throw new BadRequestException(
-        'deliveryAddressId can only be used for delivery orders',
+        'deliveryAddressId can only used for delivery orders',
       );
     }
   }
