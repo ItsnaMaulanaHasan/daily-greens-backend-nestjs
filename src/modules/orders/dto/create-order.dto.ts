@@ -5,7 +5,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -57,30 +56,6 @@ export class CreateOrderDto {
       'customerPhone must contain 8 to 15 digits and may start with a plus sign',
   })
   customerPhone: string;
-
-  @ApiPropertyOptional({
-    example: '',
-    format: 'uuid',
-    description:
-      'ID alamat tersimpan milik customer. Wajib untuk order bertipe DELIVERY',
-  })
-  @IsOptional()
-  @IsUUID()
-  deliveryAddressId?: string;
-
-  @ApiPropertyOptional({
-    example: 'JL. Merdeka No. 10, Jakarta',
-    maxLength: 2000,
-    description:
-      'Wajib untuk DELIVERY dan tidak diperlukan untuk PICKUP atau DINE_IN',
-  })
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  @IsOptional()
-  @IsString()
-  @MaxLength(2000)
-  deliveryAddress?: string;
 
   @ApiPropertyOptional({
     example: 'Tolong hubungi ketika pesanan sudah sampai',
