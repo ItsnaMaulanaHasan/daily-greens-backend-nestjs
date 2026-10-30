@@ -323,6 +323,12 @@ export class OrdersService {
           status: true,
           orderType: true,
           paymentStatus: true,
+
+          deliveryPostalCode: true,
+          deliveryZoneName: true,
+          estimatedDeliveryMinMinutes: true,
+          estimatedDeliveryMaxMinutes: true,
+
           subtotal: true,
           discountAmount: true,
           deliveryFee: true,
@@ -470,6 +476,11 @@ export class OrdersService {
 
           customerName: true,
           customerPhone: true,
+
+          deliveryPostalCode: true,
+          deliveryZoneName: true,
+          estimatedDeliveryMinMinutes: true,
+          estimatedDeliveryMaxMinutes: true,
 
           subtotal: true,
           discountAmount: true,
