@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -56,6 +57,16 @@ export class CreateOrderDto {
       'customerPhone must contain 8 to 15 digits and may start with a plus sign',
   })
   customerPhone: string;
+
+  @ApiPropertyOptional({
+    example: '11111111-1111-4111-8111-111111111111',
+    format: 'uuid',
+    description:
+      'ID alamat tersimpan milik customer. Wajib untuk order bertipe DELIVERY',
+  })
+  @IsOptional()
+  @IsUUID()
+  deliveryAddressId?: string;
 
   @ApiPropertyOptional({
     example: 'Tolong hubungi ketika pesanan sudah sampai',
