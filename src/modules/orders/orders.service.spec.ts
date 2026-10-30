@@ -182,7 +182,7 @@ describe('OrdersService', () => {
         paymentMethod: PaymentMethod.CASH,
         customerName: 'Itsna Maulana',
         customerPhone: '081234567890',
-        deliveryAddress: 'Jl. Merdeka No. 10',
+        deliveryAddressId: '99999999-9999-4999-8999-999999999999',
       }),
     ).rejects.toThrow('Cart is empty');
 
@@ -574,7 +574,7 @@ describe('OrdersService', () => {
         paymentMethod: PaymentMethod.QRIS,
         customerName: 'Itsna Maulana',
         customerPhone: '081234567890',
-        deliveryAddress: 'Jl. Merdeka No. 10',
+        deliveryAddressId: '99999999-9999-4999-8999-999999999999',
       }),
     ).rejects.toThrow('Only CASH payment is currently available');
 
@@ -667,7 +667,7 @@ describe('OrdersService', () => {
       paymentMethod: PaymentMethod.CASH,
       customerName: 'Itsna Maulana',
       customerPhone: '081234567890',
-      deliveryAddress: 'Jl. Merdeka No. 10',
+      deliveryAddressId: '99999999-9999-4999-8999-999999999999',
     });
 
     expect(orderCreateMock).toHaveBeenCalledWith(
