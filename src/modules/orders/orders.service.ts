@@ -85,7 +85,11 @@ export class OrdersService {
 
       const cart = await this.getValidatedCheckoutCart(transaction, userId);
 
-      const pricing = await this.calculateCheckoutPricing(transaction, cart);
+      const pricing = await this.calculateCheckoutPricing(
+        transaction,
+        cart,
+        deliveryDetails,
+      );
 
       await this.validatePromotionUsage(
         transaction,
@@ -1173,6 +1177,7 @@ export class OrdersService {
   private async calculateCheckoutPricing(
     transaction: Prisma.TransactionClient,
     cart: Awaited<ReturnType<OrdersService['getValidatedCheckoutCart']>>,
+    deliveryDetails: CheckoutDeliveryDetails,
   ): Promise<CheckoutPricing> {
     const promotionItems: PromotionCalculationItem[] = cart.items.map(
       (item) => ({
@@ -1432,7 +1437,20 @@ export class OrdersService {
 
     const discountAmount = Math.round(accumulatedDiscount * 100) / 100;
 
-    const deliveryFee = 0;
+    if (subtotal < deliveryDetails.minimumOrderAmount) {
+      throw new BadRequestException(
+        `The minimum order amount for this delivery zone is ${deliveryDetails.minimumOrderAmount}`,
+      );
+    }
+
+    const qualifiesForFreeDelivery =
+      deliveryDetails.freeDeliveryThreshold !== null &&
+      subtotal >= deliveryDetails.freeDeliveryThreshold;
+
+    const deliveryFee = qualifiesForFreeDelivery
+      ? 0
+      : deliveryDetails.baseDeliveryFee;
+
     const taxAmount = 0;
 
     const totalAmount = Math.max(
