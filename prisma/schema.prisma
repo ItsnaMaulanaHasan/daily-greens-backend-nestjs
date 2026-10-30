@@ -114,7 +114,7 @@ model StoreSetting {
   storeName   String  @default("Daily Greens") @map("store_name") @db.VarChar(255)
   email       String? @db.VarChar(255)
   phoneNumber String? @map("phone_number") @db.VarChar(20)
-  addres      String? @db.Text()
+  address     String? @db.Text()
   timezone    String  @default("Asia/Jakarta") @db.VarChar(100)
 
   isAcceptingOrders Boolean @default(true) @map("is_accepting_orders")
@@ -128,7 +128,7 @@ model StoreSetting {
   // relations
   businessHours StoreBusinessHour[]
 
-  @@map("store_setting")
+  @@map("store_settings")
 }
 
 model StoreBusinessHour {
