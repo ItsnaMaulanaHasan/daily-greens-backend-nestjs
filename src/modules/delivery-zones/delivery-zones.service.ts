@@ -270,11 +270,17 @@ export class DeliveryZonesService {
             dto.minimumOrderAmount ??
             Number(existingDeliveryZone.minimumOrderAmount);
 
-          const freeDeliveryThreshold =
-            dto.freeDeliveryThreshold ??
-            (existingDeliveryZone.freeDeliveryThreshold === null
-              ? null
-              : Number(existingDeliveryZone.freeDeliveryThreshold));
+          let freeDeliveryThreshold: number | null;
+
+          if (dto.freeDeliveryThreshold !== undefined) {
+            freeDeliveryThreshold = dto.freeDeliveryThreshold;
+          } else if (existingDeliveryZone.freeDeliveryThreshold === null) {
+            freeDeliveryThreshold = null;
+          } else {
+            freeDeliveryThreshold = Number(
+              existingDeliveryZone.freeDeliveryThreshold,
+            );
+          }
 
           const estimatedMinMinutes =
             dto.estimatedMinMinutes ?? existingDeliveryZone.estimatedMinMinutes;
