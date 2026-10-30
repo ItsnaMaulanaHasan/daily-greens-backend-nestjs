@@ -24,6 +24,7 @@ import {
 } from '../promotions/promotion-calculator.service';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
+import { CheckoutPreviewDto } from './dto/checkout-preview.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -294,6 +295,59 @@ export class OrdersService {
       ]);
 
       return order;
+    });
+  }
+
+  async previewCheckout(userId: string, dto: CheckoutPreviewDto) {
+    this.validateCheckoutDeliveryRequest(dto);
+
+    return this.runSerializableTransaction(async (transaction) => {
+      const deliveryDetails = await this.getCheckoutDeliveryDetails(
+        transaction,
+        userId,
+        dto,
+      );
+
+      const cart = await this.getValidatedCheckoutCart(transaction, userId);
+
+      const pricing = await this.calculateCheckoutPricing(
+        transaction,
+        cart,
+        deliveryDetails,
+      );
+
+      await this.validatePromotionUsage(
+        transaction,
+        userId,
+        pricing.appliedPromotions.map((promotion) => promotion.id),
+      );
+
+      return {
+        orderType: dto.orderType,
+
+        delivery: {
+          addressId: deliveryDetails.deliveryAddressId,
+          zoneId: deliveryDetails.deliveryZoneId,
+          address: deliveryDetails.deliveryAddress,
+          postalCode: deliveryDetails.deliveryPostalCode,
+          zoneName: deliveryDetails.deliveryZoneName,
+          estimatedMinMinutes: deliveryDetails.estimatedDeliveryMinMinutes,
+          estimatedDeliveryMaxMinutes:
+            deliveryDetails.estimatedDeliveryMaxMinutes,
+          minimumOrderAmount: deliveryDetails.minimumOrderAmount,
+          freeDeliveryThreshold: deliveryDetails.freeDeliveryThreshold,
+        },
+
+        appliedPromotions: pricing.appliedPromotions,
+
+        summary: {
+          subtotal: pricing.subtotal,
+          discountAmount: pricing.discountAmount,
+          deliveryFee: pricing.deliveryFee,
+          taxAmount: pricing.taxAmount,
+          totalAmount: pricing.totalAmount,
+        },
+      };
     });
   }
 
