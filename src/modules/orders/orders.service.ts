@@ -73,10 +73,16 @@ export class OrdersService {
   ) {}
 
   async checkout(userId: string, dto: CreateOrderDto) {
-    const deliveryAddress = this.validateCheckoutRequest(dto);
+    this.validateCheckoutRequest(dto);
     const orderNumber = this.generateOrderNumber();
 
     return this.runSerializableTransaction(async (transaction) => {
+      const deliveryDetails = await this.getCheckoutDeliveryDetails(
+        transaction,
+        userId,
+        dto,
+      );
+
       const cart = await this.getValidatedCheckoutCart(transaction, userId);
 
       const pricing = await this.calculateCheckoutPricing(transaction, cart);
@@ -95,7 +101,17 @@ export class OrdersService {
           customerName: dto.customerName,
           customerPhone: dto.customerPhone,
           customerNote: dto.customerNote?.trim() || null,
-          deliveryAddress,
+
+          deliveryAddressId: deliveryDetails.deliveryAddressId,
+          deliveryZoneId: deliveryDetails.deliveryZoneId,
+          deliveryAddress: deliveryDetails.deliveryAddress,
+          deliveryPostalCode: deliveryDetails.deliveryPostalCode,
+          deliveryZoneName: deliveryDetails.deliveryZoneName,
+          estimatedDeliveryMinMinutes:
+            deliveryDetails.estimatedDeliveryMinMinutes,
+          estimatedDeliveryMaxMinutes:
+            deliveryDetails.estimatedDeliveryMaxMinutes,
+
           subtotal: pricing.subtotal,
           discountAmount: pricing.discountAmount,
           deliveryFee: pricing.deliveryFee,
@@ -1778,24 +1794,25 @@ export class OrdersService {
     };
   }
 
-  private validateCheckoutRequest(dto: CreateOrderDto): string | null {
+  private validateCheckoutRequest(dto: CreateOrderDto): void {
     if (dto.paymentMethod !== PaymentMethod.CASH) {
       throw new BadRequestException('Only CASH payment is currently available');
     }
 
-    const deliveryAddress = dto.deliveryAddress?.trim() || null;
-
-    if (dto.orderType === OrderType.DELIVERY && deliveryAddress === null) {
+    if (dto.orderType === OrderType.DELIVERY && !dto.deliveryAddressId) {
       throw new BadRequestException(
-        'Delivery address is required for delivery orders',
+        'deliveryAddressId is required for delivery orders',
       );
     }
 
-    if (dto.orderType !== OrderType.DELIVERY) {
-      return null;
+    if (
+      dto.orderType !== OrderType.DELIVERY &&
+      dto.deliveryAddressId !== undefined
+    ) {
+      throw new BadRequestException(
+        'deliveryAddressId can only be used for delivery orders',
+      );
     }
-
-    return deliveryAddress;
   }
 
   private async runSerializableTransaction<T>(
