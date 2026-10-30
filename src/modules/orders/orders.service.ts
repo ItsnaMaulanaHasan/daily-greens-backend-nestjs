@@ -545,7 +545,7 @@ export class OrdersService {
     });
 
     if (!orderOwner) {
-      throw new NotFoundException('Order not foundd');
+      throw new NotFoundException('Order not found');
     }
 
     return this.getMyOrderById(orderOwner.userId, orderId);
@@ -567,7 +567,14 @@ export class OrdersService {
         customerName: true,
         customerPhone: true,
         customerNote: true,
+
+        deliveryAddressId: true,
+        deliveryZoneId: true,
         deliveryAddress: true,
+        deliveryPostalCode: true,
+        deliveryZoneName: true,
+        estimatedDeliveryMinMinutes: true,
+        estimatedDeliveryMaxMinutes: true,
 
         subtotal: true,
         discountAmount: true,
