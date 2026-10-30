@@ -98,6 +98,59 @@ enum PaymentMethod {
   CARD
 }
 
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+model StoreSetting {
+  id String @id @default("default") @db.VarChar(20)
+
+  storeName   String  @default("Daily Greens") @map("store_name") @db.VarChar(255)
+  email       String? @db.VarChar(255)
+  phoneNumber String? @map("phone_number") @db.VarChar(20)
+  addres      String? @db.Text()
+  timezone    String  @default("Asia/Jakarta") @db.VarChar(100)
+
+  isAcceptingOrders Boolean @default(true) @map("is_accepting_orders")
+
+  taxPercentage Decimal @default(0) @map("tax_percentage") @db.Decimal(5, 2)
+  serviceFee    Decimal @default(0) @map("service_fee") @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // relations
+  businessHours StoreBusinessHour[]
+
+  @@map("store_setting")
+}
+
+model StoreBusinessHour {
+  id             String    @id @default(uuid()) @db.Uuid
+  storeSettingId String    @map("store_setting_id") @db.VarChar(20)
+  dayOfWeek      DayOfWeek @map("day_of_week")
+
+  isClosed    Boolean @default(false) @map("is_closed")
+  openingTime String? @map("opening_time") @db.VarChar(5)
+  closingTime String? @map("closing_time") @db.VarChar(5)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // relations
+  storeSetting StoreSetting @relation(fields: [storeSettingId], references: [id], onDelete: Cascade)
+
+  @@unique([storeSettingId, dayOfWeek])
+  @@index([storeSettingId])
+  @@map("store_business_hours")
+}
+
 model User {
   id              String     @id @default(uuid()) @db.Uuid
   email           String     @unique @db.VarChar(255)
