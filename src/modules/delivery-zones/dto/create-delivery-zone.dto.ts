@@ -78,7 +78,7 @@ export class CreateDeliveryZoneDto {
     maxDecimalPlaces: 2,
   })
   @Min(0)
-  freeDeliveryThreshold?: number;
+  freeDeliveryThreshold?: number | null;
 
   @ApiProperty({
     example: 30,
