@@ -30,6 +30,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { AdminOrderQueryDto } from './dto/admin-order-query.dto';
 import { CancelOrderDto } from './dto/cancel-order.dto';
+import { CheckoutPreviewDto } from './dto/checkout-preview.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -255,6 +256,34 @@ export class OrdersController {
     @Body() dto: CancelOrderDto,
   ) {
     return this.ordersService.cancelMyOrder(request.user.id, orderId, dto);
+  }
+
+  @ApiOperation({
+    summary: 'Melihat preview perhitungan checkout',
+    description:
+      'Menghitung promosi, biaya pengiriman, dan total akhir tanpa membuat order atay mengubah cart',
+  })
+  @ApiOkResponse({
+    description: 'Preview checkout berhasil dihitung',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Cart kosong, produk tidak tersedia, stok tidak mencukupi, promo tidak valid, minimum order belum tercapai, alamat tidak dapat dikirim, atau data preview tidak sesuai',
+  })
+  @ApiNotFoundResponse({
+    description:
+      'Alamat tidak ditemukan atau bukan milik user yang sedang login',
+  })
+  @ApiConflictResponse({
+    description:
+      'Terjadi konflik transaksi saat menghitung preview. Request dapat dicoba kembali',
+  })
+  @Post('checkout/preview')
+  previewCheckout(
+    @Req() request: AuthenticatedRequest,
+    @Body() dto: CheckoutPreviewDto,
+  ) {
+    return this.ordersService.previewCheckout(request.user.id, dto);
   }
 
   @ApiOperation({
