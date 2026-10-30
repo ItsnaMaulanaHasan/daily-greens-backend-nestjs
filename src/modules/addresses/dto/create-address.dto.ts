@@ -42,7 +42,7 @@ export class CreateAddressDto {
 
   @ApiProperty({
     example: '081234567890',
-    description: 'Nomor telepen penerima, terdiri dari 8 sampai 15 digit',
+    description: 'Nomor telepon penerima, terdiri dari 8 sampai 15 digit',
   })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
@@ -118,7 +118,7 @@ export class CreateAddressDto {
 
   @ApiProperty({
     example: '10305',
-    description: 'Kode Pos Indonesia sebanhay 5 digit',
+    description: 'Kode Pos Indonesia sebanyak 5 digit',
   })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim() : value,
@@ -131,7 +131,7 @@ export class CreateAddressDto {
 
   @ApiPropertyOptional({
     example: -6.1944491,
-    minimum: 1,
+    minimum: -90,
     maximum: 90,
   })
   @IsOptional()

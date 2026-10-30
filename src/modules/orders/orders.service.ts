@@ -1739,7 +1739,7 @@ export class OrdersService {
 
     if (!dto.deliveryAddressId) {
       throw new BadRequestException(
-        'deliveryAddressId is reuqired for delivery orders',
+        'deliveryAddressId is required for delivery orders',
       );
     }
 
