@@ -12,6 +12,7 @@ import { PromotionModule } from './modules/promotions/promotion.module';
 import { UsersModule } from './modules/users/users.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
 import { DeliveryZonesModule } from './modules/delivery-zones/delivery-zones.module';
+import { StoreSettingsModule } from './modules/store-settings/store-settings.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { DeliveryZonesModule } from './modules/delivery-zones/delivery-zones.mod
     OrdersModule,
     AddressesModule,
     DeliveryZonesModule,
+    StoreSettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
